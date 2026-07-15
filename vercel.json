@@ -1,26 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "web": {
-      "root": "frontend",
-      "framework": "vite"
-    },
-    "api": {
-      "root": ".",
-      "framework": "fastapi",
-      "entrypoint": "api.index:app",
-      "functions": {
-        "api/index.py": {
-          "memory": 1024,
-          "maxDuration": 60,
-          "includeFiles": "server/**"
-        }
-      }
-    }
-  },
+  "framework": "vite",
+  "buildCommand": "cd frontend && npm ci && npm run build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": { "service": "api" } },
-    { "source": "/(.*)", "destination": { "service": "web" } }
+    { "source": "/api/(.*)", "destination": "/api/index" }
   ],
   "headers": [
     {
@@ -40,5 +24,12 @@
         { "key": "Cache-Control", "value": "no-store" }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 60,
+      "includeFiles": "server/**"
+    }
+  }
 }
