@@ -334,6 +334,61 @@ async def optimize(
         ) from exc
 
 
+@app.post("/api/enhance")
+async def enhance(
+    formation: str = Query(...),
+    target_column: Optional[str] = Query(None),
+    file: UploadFile = File(...),
+):
+    """Apply a registered formation to every row of an uploaded CSV."""
+    if formation not in FORMATIONS:
+        raise HTTPException(400, f"Unknown formation: {formation}")
+
+    upload = await _load_csv_upload(file, target_column, min_class_rows=2)
+    try:
+        result = enhance_dataset(
+            formation,
+            upload.X,
+            upload.y,
+            upload.feature_names,
+            upload.target_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Enhancement failed")
+        raise HTTPException(
+            500, "Enhancement failed. Check the dataset and formation."
+        ) from exc
+
+    payload = result.dataframe.to_csv(index=False).encode("utf-8")
+    if len(payload) > MAX_ENHANCE_OUTPUT_SIZE:
+        raise HTTPException(
+            413,
+            "Enhanced CSV exceeds the maximum response size "
+            f"({MAX_ENHANCE_OUTPUT_SIZE / 1024 / 1024:.0f}MB)",
+        )
+
+    stem = os.path.splitext(os.path.basename(upload.filename))[0] or "upload"
+    safe_stem = "".join(char if char.isalnum() or char in "-_" else "_" for char in stem)
+    filename = f"{safe_stem}-{formation}-sofidr.csv"
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-SOFIDR-Input-Rows": str(result.input_rows),
+        "X-SOFIDR-Input-Columns": str(result.input_columns),
+        "X-SOFIDR-Output-Rows": str(result.output_rows),
+        "X-SOFIDR-Output-Columns": str(result.output_columns),
+        "X-SOFIDR-Synthetic-Rows": str(result.synthetic_rows),
+        "X-SOFIDR-Removed-Rows": str(result.removed_rows),
+        "X-SOFIDR-Steps": ",".join(result.steps),
+    }
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+        headers=headers,
+    )
+
+
 # Health check for Vercel
 @app.get("/")
 async def root():

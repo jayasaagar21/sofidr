@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react"
-import { api, OptimizeResponse, Archetype, Formation } from "./api"
+import React, { useState, useEffect, useRef } from "react"
+import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse } from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
 import ResultsDisplay from "./components/ResultsDisplay"
+import GuidedProcessDemo from "./components/GuidedProcessDemo"
+import AnalysisProgress from "./components/AnalysisProgress"
 import "./App.css"
 
 interface AppState {
@@ -11,6 +13,10 @@ interface AppState {
   result: OptimizeResponse | null
   archetypes: Archetype
   formations: Formation
+  sourceFile: File | null
+  enhancement: EnhanceResponse | null
+  enhancementLoading: boolean
+  enhancementError: string
 }
 
 export default function App() {
@@ -20,7 +26,13 @@ export default function App() {
     result: null,
     archetypes: {},
     formations: {},
+    sourceFile: null,
+    enhancement: null,
+    enhancementLoading: false,
+    enhancementError: "",
   })
+  const [demoActive, setDemoActive] = useState(false)
+  const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
 
   // Load metadata on mount
   useEffect(() => {
@@ -44,7 +56,15 @@ export default function App() {
   }, [])
 
   const handleArchetypeSelect = async (archetype: string) => {
-    setState((s) => ({ ...s, loading: true, error: "" }))
+    setState((s) => ({
+      ...s,
+      loading: true,
+      error: "",
+      sourceFile: null,
+      enhancement: null,
+      enhancementLoading: false,
+      enhancementError: "",
+    }))
     try {
       const result = await api.optimize({ archetype })
       setState((s) => ({ ...s, result, loading: false }))
@@ -55,14 +75,71 @@ export default function App() {
   }
 
   const handleFileUpload = async (file: File) => {
-    setState((s) => ({ ...s, loading: true, error: "" }))
+    setState((s) => ({
+      ...s,
+      loading: true,
+      error: "",
+      sourceFile: file,
+      enhancement: null,
+      enhancementLoading: false,
+      enhancementError: "",
+    }))
     try {
       const result = await api.optimize({ file })
-      setState((s) => ({ ...s, result, loading: false }))
+      setState((s) => ({
+        ...s,
+        result,
+        loading: false,
+        enhancementLoading: result.success,
+      }))
+      if (!result.success) return
+
+      try {
+        const enhancement = await api.enhance(file, result.best_by_sei)
+        setState((s) => ({ ...s, enhancement, enhancementLoading: false }))
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error"
+        setState((s) => ({
+          ...s,
+          enhancementError: msg,
+          enhancementLoading: false,
+        }))
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
       setState((s) => ({ ...s, error: msg, loading: false }))
     }
+  }
+
+  const exploreBenchmark = () => {
+    setDemoActive(true)
+    window.requestAnimationFrame(() => {
+      document.getElementById("process-demo")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    })
+  }
+
+  const focusBenchmarkPicker = () => {
+    document.getElementById("analysis")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
+    window.setTimeout(() => benchmarkButtonRef.current?.focus({ preventScroll: true }), 450)
+  }
+
+  const resetAnalysis = () => {
+    setState((s) => ({
+      ...s,
+      loading: false,
+      error: "",
+      result: null,
+      sourceFile: null,
+      enhancement: null,
+      enhancementLoading: false,
+      enhancementError: "",
+    }))
   }
 
   return (
@@ -85,6 +162,12 @@ export default function App() {
             Compare eight leak-resistant preprocessing formations against the same
             cross-validation folds. Get a ranked recommendation in seconds.
           </p>
+          <div className="hero-actions">
+            <button type="button" className="hero-cta" onClick={exploreBenchmark}>
+              Explore Benchmark <span aria-hidden="true">↓</span>
+            </button>
+            <span>Follow the four-stage evidence trail</span>
+          </div>
           <div className="hero-proof" aria-label="SOFIDR methodology">
             <span><strong>8</strong> formations</span>
             <span><strong>4</strong> decision metrics</span>
@@ -93,12 +176,18 @@ export default function App() {
         </div>
       </header>
 
+      <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusBenchmarkPicker} />
+
       <main className="app-main" id="analysis">
         {state.result ? (
           <ResultsDisplay
             result={state.result}
             formations={state.formations}
-            onReset={() => setState((s) => ({ ...s, result: null }))}
+            enhancement={state.enhancement}
+            enhancementLoading={state.enhancementLoading}
+            enhancementError={state.enhancementError}
+            isUploadedFile={Boolean(state.sourceFile)}
+            onReset={resetAnalysis}
           />
         ) : (
           <div className="input-section">
@@ -117,6 +206,7 @@ export default function App() {
                 archetypes={state.archetypes}
                 loading={state.loading}
                 onSelect={handleArchetypeSelect}
+                firstButtonRef={benchmarkButtonRef}
               />
               <div className="divider" aria-hidden="true"><span>or</span></div>
               <FileUploader loading={state.loading} onUpload={handleFileUpload} />
@@ -125,13 +215,7 @@ export default function App() {
             {state.error && <div className="error-message" role="alert">{state.error}</div>}
 
             {state.loading && (
-              <div className="loading-container" role="status" aria-live="polite">
-                <div className="spinner"></div>
-                <div>
-                  <strong>Testing formations</strong>
-                  <p>Scoring accuracy, stability, retention, and simplicity.</p>
-                </div>
-              </div>
+              <AnalysisProgress />
             )}
           </div>
         )}
