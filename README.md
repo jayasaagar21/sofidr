@@ -1,6 +1,4 @@
-[README.md](https://github.com/user-attachments/files/30045508/README.md)
-# sofidr
-A unique strategy based data output technique# SOFIDR
+# SOFIDR
 
 SOFIDR (Strategic Optimization Framework for Iterative Data Regeneration) compares leak-resistant preprocessing formations and selects a strategy using the Strategic Efficiency Index.
 
@@ -80,4 +78,3 @@ After the Vercel deployment works:
 4. Set Proxy status to **DNS only** and TTL to Auto.
 
 Do not use a generic or guessed Vercel CNAME.
-

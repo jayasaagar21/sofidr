@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Upload a CSV and compare SOFIDR preprocessing strategies." />
+  <title>SOFIDR — Dynamic Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #eef2f7;
+      --card: #fff;
+      --line: #dce3ed;
+      --ink: #172230;
+      --muted: #607087;
+      --brand: #2f5bd0;
+      --brand-dark: #1e44ac;
+      --danger: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    main { width: min(920px, calc(100% - 32px)); margin: 0 auto; padding: 56px 0; }
+    .eyebrow {
+      color: var(--brand);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 12px 0; font-size: clamp(30px, 6vw, 50px); line-height: 1.05; }
+    .lede { max-width: 64ch; color: var(--muted); font-size: 17px; }
+    .panel {
+      margin-top: 28px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--card);
+    }
+    .drop {
+      display: grid;
+      place-items: center;
+      min-height: 180px;
+      padding: 24px;
+      border: 2px dashed #bdc8d8;
+      border-radius: 10px;
+      text-align: center;
+      transition: border-color .2s, background .2s;
+    }
+    .drop.active { border-color: var(--brand); background: #eef3ff; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      background: var(--brand);
+      color: #fff;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    button:hover { background: var(--brand-dark); }
+    button:disabled { cursor: wait; opacity: .6; }
+    .hint, .status { color: var(--muted); font-size: 13px; }
+    .error { color: var(--danger); }
+    .results[hidden] { display: none; }
+    .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+    .chip {
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+      font-size: 12px;
+    }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 10px; border-bottom: 1px solid var(--line); text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    tr.best { background: #eef3ff; }
+    @media (max-width: 600px) {
+      main { padding: 32px 0; }
+      .panel { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">SOFIDR · Live analysis</div>
+      <h1>Find the right preprocessing strategy.</h1>
+      <p class="lede">Upload a classification CSV. SOFIDR evaluates eight leak-resistant preprocessing formations and ranks them using the Strategic Efficiency Index.</p>
+    </header>
+
+    <section class="panel" aria-labelledby="upload-title">
+      <h2 id="upload-title">Upload a CSV</h2>
+      <div class="drop" id="drop">
+        <div>
+          <p>Drop your CSV here or choose a file.</p>
+          <button id="browse" type="button">Choose CSV</button>
+          <input id="file" type="file" accept=".csv,text/csv" hidden />
+          <p class="hint">Last column is the target. Numeric features only. Maximum 4 MB.</p>
+        </div>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel results" id="results" hidden aria-labelledby="results-title">
+      <h2 id="results-title">Optimization results</h2>
+      <div class="summary" id="summary"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Formation</th>
+              <th>SEI</th>
+              <th>Accuracy</th>
+              <th>Stability</th>
+              <th>Retention</th>
+              <th>Simplicity</th>
+            </tr>
+          </thead>
+          <tbody id="scoreboard"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const MAX_BYTES = 4 * 1024 * 1024;
+    const drop = document.getElementById("drop");
+    const browse = document.getElementById("browse");
+    const input = document.getElementById("file");
+    const status = document.getElementById("status");
+    const results = document.getElementById("results");
+    const summary = document.getElementById("summary");
+    const scoreboard = document.getElementById("scoreboard");
+
+    const setStatus = (message, isError = false) => {
+      status.textContent = message;
+      status.classList.toggle("error", isError);
+    };
+
+    const addChip = (label, value) => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = `${label}: ${value}`;
+      summary.appendChild(chip);
+    };
+
+    const addCell = (row, value) => {
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      row.appendChild(cell);
+    };
+
+    const render = (data) => {
+      summary.replaceChildren();
+      scoreboard.replaceChildren();
+      addChip("Dataset", data.dataset_name);
+      addChip("Selected", data.selected);
+      addChip("Best by SEI", data.best_by_sei);
+      data.terrain_tags.forEach((tag) => addChip("Terrain", tag));
+
+      data.scoreboard.forEach((formation) => {
+        const row = document.createElement("tr");
+        if (formation.name === data.best_by_sei) row.className = "best";
+        addCell(row, formation.name);
+        addCell(row, Number(formation.sei).toFixed(4));
+        addCell(row, Number(formation.accuracy).toFixed(4));
+        addCell(row, Number(formation.stability).toFixed(4));
+        addCell(row, Number(formation.retention).toFixed(3));
+        addCell(row, Number(formation.simplicity).toFixed(3));
+        scoreboard.appendChild(row);
+      });
+      results.hidden = false;
+      results.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const analyze = async (file) => {
+      results.hidden = true;
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setStatus("Please choose a CSV file.", true);
+        return;
+      }
+      if (file.size > MAX_BYTES) {
+        setStatus("This file exceeds the 4 MB upload limit.", true);
+        return;
+      }
+
+      browse.disabled = true;
+      setStatus("Analyzing your dataset…");
+      const body = new FormData();
+      body.append("file", file);
+
+      try {
+        const response = await fetch("/api/optimize", { method: "POST", body });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.detail || `Request failed (${response.status})`);
+        if (!data?.success) throw new Error(data?.error || "Optimization failed");
+        render(data);
+        setStatus("Analysis complete.");
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Unable to analyze this file.", true);
+      } finally {
+        browse.disabled = false;
+        input.value = "";
+      }
+    };
+
+    browse.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => input.files?.[0] && analyze(input.files[0]));
+    ["dragenter", "dragover"].forEach((event) => {
+      drop.addEventListener(event, (e) => {
+        e.preventDefault();
+        drop.classList.add("active");
+      });
+    });
+    ["dragleave", "drop"].forEach((event) => {
+      drop.addEventListener(event, (e) => {
+        e.preventDefault();
+        drop.classList.remove("active");
+      });
+    });
+    drop.addEventListener("drop", (e) => e.dataTransfer.files?.[0] && analyze(e.dataTransfer.files[0]));
+  </script>
+</body>
+</html>

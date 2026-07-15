@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SOFIDR — How it cleans your data</title>
+<meta name="description" content="SOFIDR tries several data-preparation strategies, scores each one, and picks the best automatically. Watch a real run on a sample customer dataset." />
+<style>
+  :root{
+    --paper:#eceff5; --card:#ffffff; --card-2:#f7f9fc;
+    --line:#e0e6f0; --line-soft:#eef1f7; --line-strong:#cfd8e6;
+    --ink:#172230; --ink-2:#54637a; --ink-3:#8a99ad;
+    --brand:#2f5bd0; --brand-2:#1e44ac; --brand-soft:#e9effc; --brand-line:#c5d4f4;
+    --good:#10a37f; --mid:#d59300; --bad:#d6584a;
+    --gold:#dca42a;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans);
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(var(--line) 1px, transparent 1px);
+    background-size:22px 22px; background-position:-1px -1px;
+  }
+  .wrap{max-width:960px; margin:0 auto; padding:0 22px}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-3)}
+  .eyebrow b{color:var(--brand); font-weight:600}
+
+  /* header */
+  header{padding:54px 0 30px}
+  h1{font-size:clamp(30px,5.2vw,48px); line-height:1.04; letter-spacing:-.02em; font-weight:800; margin:18px 0 0; max-width:20ch}
+  h1 .u{color:var(--brand)}
+  .lede{margin:18px 0 0; font-size:17px; color:var(--ink-2); max-width:64ch}
+  .lede b{color:var(--ink); font-weight:600}
+  .problem{
+    margin:22px 0 0; padding:16px 18px; background:var(--card); border:1px solid var(--line);
+    border-left:3px solid var(--brand); border-radius:10px; font-size:15px; color:var(--ink-2); max-width:64ch;
+  }
+  .problem b{color:var(--ink); font-weight:600}
+
+  section{padding:34px 0; border-top:1px solid var(--line); margin-top:34px}
+  .kicker{display:flex; align-items:baseline; gap:12px; margin:0 0 6px}
+  .kicker .no{font-family:var(--mono); font-size:12px; color:var(--brand); font-weight:600; letter-spacing:.04em}
+  .kicker h2{font-size:22px; letter-spacing:-.01em; margin:0; font-weight:750}
+  .sub{color:var(--ink-2); font-size:15.5px; margin:0 0 20px; max-width:62ch}
+
+  /* sample data */
+  .chips{display:flex; flex-wrap:wrap; gap:9px; margin:0 0 18px}
+  .chip{font-family:var(--mono); font-size:12px; color:var(--ink-2); background:var(--card); border:1px solid var(--line); padding:6px 11px; border-radius:7px}
+  .chip b{color:var(--brand); font-weight:600}
+  .tablecard{background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .tablecard .cap{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); padding:13px 16px; border-bottom:1px solid var(--line); background:var(--card-2)}
+  .scroll{overflow-x:auto}
+  table.data{width:100%; border-collapse:collapse; font-size:13.5px; min-width:640px}
+  table.data th{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); text-align:right; padding:11px 14px; border-bottom:1px solid var(--line); white-space:nowrap; font-weight:600}
+  table.data th:first-child{text-align:left}
+  table.data td{padding:10px 14px; border-bottom:1px solid var(--line-soft); text-align:right; font-family:var(--mono); color:var(--ink); white-space:nowrap}
+  table.data td:first-child{text-align:left; color:var(--ink-2)}
+  table.data tr:last-child td{border-bottom:none}
+  .miss{color:var(--bad); opacity:.7}
+  .yes{color:var(--bad); font-weight:600}
+  .no2{color:var(--ink-3)}
+  .note{font-size:13.5px; color:var(--ink-2); margin:12px 2px 0}
+  .note b{color:var(--ink)}
+
+  /* interactive runner */
+  .runner-head{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 0 22px}
+  .run-btn{
+    font-family:var(--sans); font-size:15px; font-weight:650; cursor:pointer; color:#fff; border:none;
+    background:var(--brand); padding:12px 20px; border-radius:9px; display:inline-flex; align-items:center; gap:9px;
+    transition:transform .14s ease, box-shadow .14s ease, background .14s ease;
+  }
+  .run-btn:hover{transform:translateY(-1px); background:var(--brand-2); box-shadow:0 6px 16px rgba(47,91,208,.25)}
+  .run-btn:focus-visible{outline:2px solid var(--brand); outline-offset:3px}
+  .run-btn .play{font-size:12px}
+  .run-hint{font-family:var(--mono); font-size:12px; color:var(--ink-3)}
+
+  /* phase timeline */
+  .timeline{display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin:0 0 22px; position:relative}
+  .tl-step{text-align:left; cursor:pointer; background:none; border:none; padding:0 12px 0 0; position:relative}
+  .tl-step .bar{height:4px; border-radius:2px; background:var(--line-strong); margin-bottom:10px; overflow:hidden}
+  .tl-step .bar i{display:block; height:100%; width:0; background:var(--brand); transition:width .4s ease}
+  .tl-step.done .bar i{width:100%}
+  .tl-step .n{font-family:var(--mono); font-size:11px; color:var(--ink-3); letter-spacing:.04em}
+  .tl-step .t{font-size:13.5px; font-weight:600; color:var(--ink-3); margin-top:2px; transition:color .2s ease}
+  .tl-step.done .t{color:var(--ink)}
+  .tl-step.active .t{color:var(--brand)}
+  .tl-step:focus-visible{outline:2px solid var(--brand); outline-offset:3px; border-radius:4px}
+
+  .phase{
+    background:var(--card); border:1px solid var(--line); border-radius:12px; padding:22px;
+    margin-bottom:14px; opacity:.45; transition:opacity .35s ease, transform .35s ease, border-color .35s ease;
+  }
+  .phase:not(.on){pointer-events:none}
+  .phase.on{opacity:1}
+  .phase .ph-h{display:flex; align-items:center; gap:11px; margin:0 0 4px}
+  .phase .ph-h .dot{width:9px; height:9px; border-radius:50%; background:var(--line-strong); flex:none}
+  .phase.on .ph-h .dot{background:var(--brand)}
+  .phase .ph-h h3{font-size:17px; margin:0; font-weight:700; letter-spacing:-.01em}
+  .phase .ph-d{color:var(--ink-2); font-size:14.5px; margin:0 0 16px; padding-left:20px}
+
+  /* phase 1 findings */
+  .findings{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; padding-left:20px}
+  .finding{background:var(--card-2); border:1px solid var(--line); border-radius:10px; padding:13px 14px; opacity:0; transform:translateY(6px); transition:opacity .4s ease, transform .4s ease}
+  .phase.on .finding{opacity:1; transform:none}
+  .phase.on .finding:nth-child(2){transition-delay:.12s}
+  .phase.on .finding:nth-child(3){transition-delay:.24s}
+  .finding .fl{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+  .finding .fv{font-size:15px; font-weight:650; color:var(--ink); margin-top:4px}
+  .finding .fx{font-size:12.5px; color:var(--ink-2); margin-top:3px}
+  .tagrow{display:flex; gap:8px; flex-wrap:wrap; padding:16px 0 0 20px}
+  .ttag{font-family:var(--mono); font-size:12px; color:var(--brand); background:var(--brand-soft); border:1px solid var(--brand-line); padding:5px 11px; border-radius:7px}
+
+  /* phase 2 strategy cards */
+  .strats{display:grid; grid-template-columns:repeat(2,1fr); gap:11px; padding-left:20px}
+  .strat{display:flex; gap:12px; align-items:flex-start; background:var(--card-2); border:1px solid var(--line); border-radius:10px; padding:13px 14px; opacity:0; transform:translateY(6px); transition:opacity .35s ease, transform .35s ease}
+  .phase.on .strat{opacity:1; transform:none}
+  .strat .si{font-size:22px; line-height:1; flex:none}
+  .strat .sn{font-weight:700; font-size:14.5px; text-transform:capitalize}
+  .strat .sd{font-size:12.5px; color:var(--ink-2); margin-top:2px}
+
+  /* phase 3 leaderboard */
+  .lb{display:flex; flex-direction:column; gap:9px; padding-left:20px}
+  .lb-cap{font-size:13px; color:var(--ink-2); padding-left:20px; margin:0 0 14px}
+  .lb-cap b{color:var(--ink)}
+  .lrow{display:grid; grid-template-columns:150px 1fr 58px; align-items:center; gap:13px}
+  .lrow .ln{font-size:13.5px; font-weight:600; text-transform:capitalize; display:flex; align-items:center; gap:8px; min-width:0}
+  .lrow .ln .li{font-size:15px; flex:none}
+  .lrow .ln .ex{font-family:var(--mono); font-size:8.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); border:1px solid var(--line); padding:1px 4px; border-radius:4px}
+  .ltrack{height:18px; border-radius:5px; background:var(--card-2); border:1px solid var(--line); overflow:hidden; position:relative}
+  .lfill{height:100%; width:0; border-radius:4px 0 0 4px; transition:width .9s cubic-bezier(.2,.7,.2,1)}
+  .lval{font-family:var(--mono); font-size:13px; font-weight:700; text-align:right; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .5s ease}
+  .lrow.show .lval{opacity:1}
+  .lrow.first .ln{color:var(--brand)}
+
+  /* phase 4 winner */
+  .winner{padding-left:20px}
+  .win-hero{display:flex; gap:16px; align-items:center; background:linear-gradient(180deg,var(--brand-soft),#fff); border:1px solid var(--brand-line); border-radius:12px; padding:18px 20px}
+  .win-ico{font-size:40px; line-height:1; flex:none}
+  .win-star{color:var(--gold); font-size:14px}
+  .win-name{font-size:24px; font-weight:800; text-transform:capitalize; letter-spacing:-.01em}
+  .win-tag{font-size:13px; color:var(--ink-2); margin-top:2px}
+  .win-sei{margin-left:auto; text-align:right}
+  .win-sei .v{font-family:var(--mono); font-size:26px; font-weight:700}
+  .win-sei .l{font-family:var(--mono); font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
+  .why{margin:16px 0 0; font-size:15px; color:var(--ink-2)}
+  .why b{color:var(--ink); font-weight:650}
+  .breakdown{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:18px 0 0}
+  .bd{background:var(--card-2); border:1px solid var(--line); border-radius:10px; padding:12px 13px}
+  .bd .k{font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3)}
+  .bd .wt{font-size:11px; color:var(--ink-3)}
+  .bd .v{font-family:var(--mono); font-size:18px; font-weight:700; margin-top:6px}
+  .bd .mini{height:5px; border-radius:3px; background:var(--line-soft); margin-top:7px; overflow:hidden}
+  .bd .mini i{display:block; height:100%; background:var(--brand); width:0; transition:width .7s ease}
+  .outcome{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin:18px 0 0; padding:16px 18px; background:var(--card-2); border:1px solid var(--line); border-radius:11px}
+  .outcome .big{font-family:var(--mono); font-size:30px; font-weight:800; color:var(--good)}
+  .outcome .ot{font-size:14px; color:var(--ink-2)}
+  .outcome .ot b{color:var(--ink)}
+  .recipe{margin:16px 0 0; font-size:14px; color:var(--ink-2)}
+  .recipe .step{display:inline-flex; align-items:center; gap:7px; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 12px; margin:5px 6px 0 0; font-family:var(--mono); font-size:12.5px; color:var(--ink)}
+  .recipe .step .num{color:var(--brand); font-weight:700}
+  .confirm{margin:14px 0 0; font-size:13.5px; color:var(--ink-2); display:flex; gap:8px; align-items:flex-start}
+  .confirm .ck{color:var(--good); font-weight:700; flex:none}
+
+  /* SEI explainer */
+  .sei-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+  .sei-card{background:var(--card); border:1px solid var(--line); border-radius:11px; padding:16px}
+  .sei-card .pct{font-family:var(--mono); font-size:22px; font-weight:700; color:var(--brand)}
+  .sei-card .nm{font-weight:700; font-size:14.5px; margin-top:6px}
+  .sei-card .ds{font-size:13px; color:var(--ink-2); margin-top:4px}
+  .sei-foot{font-size:14px; color:var(--ink-2); margin:18px 0 0; max-width:62ch}
+  .sei-foot b{color:var(--ink)}
+
+  /* footer */
+  footer{padding:34px 0 56px; border-top:1px solid var(--line); margin-top:34px}
+  .foot{display:flex; justify-content:space-between; gap:18px; align-items:center; flex-wrap:wrap}
+  .foot .note2{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); max-width:46ch}
+  .foot a{font-family:var(--sans); font-size:14px; font-weight:600; text-decoration:none; color:#fff; background:var(--brand); padding:11px 18px; border-radius:9px; display:inline-flex; gap:8px; align-items:center; transition:background .14s ease, transform .14s ease}
+  .foot a:hover{background:var(--brand-2); transform:translateY(-1px)}
+
+  @media (max-width:780px){
+    .findings,.sei-grid,.breakdown{grid-template-columns:1fr 1fr}
+    .strats{grid-template-columns:1fr}
+    .timeline{grid-template-columns:1fr 1fr; gap:14px 12px}
+    .lrow{grid-template-columns:120px 1fr 50px; gap:10px}
+    .foot{flex-direction:column; align-items:flex-start}
+  }
+  @media (max-width:480px){
+    .findings,.sei-grid,.breakdown{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important; animation:none !important}
+    html{scroll-behavior:auto}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow"><b>SOFIDR</b> · AUTOMATIC DATA PREPARATION</div>
+    <h1>See how SOFIDR cleans your data — <span class="u">and why</span>.</h1>
+    <p class="lede">Before a model can learn, the data has to be cleaned and prepared. There are many ways to do that, and the best one depends on the data itself. SOFIDR tries the sensible options, scores each one, and picks the best — <b>automatically</b>. Below is a real run on a sample dataset.</p>
+    <div class="problem">Most teams choose a data-prep method out of habit. Choose wrong, and the model is weaker for no real reason. <b>SOFIDR takes the guesswork out</b> and shows its reasoning.</div>
+  </header>
+
+  <!-- SAMPLE DATA -->
+  <section>
+    <div class="kicker"><span class="no">01</span><h2>The sample data</h2></div>
+    <p class="sub">We're looking at <b id="s-n">1,000</b> customers from a subscription business. The goal is to predict who will cancel their plan. It's a realistic, tricky case — the outcome groups are very uneven, and some records are missing a value.</p>
+    <div class="chips" id="data-chips"></div>
+    <div class="tablecard">
+      <div class="cap">Sample · first 8 customers</div>
+      <div class="scroll"><table class="data" id="data-table"></table></div>
+    </div>
+    <p class="note"><b>Total charges</b> is blank where the value is missing. Only about a fifth of customers churned, so a naive model could score "well" by simply predicting that nobody cancels — which is exactly the trap good data prep helps avoid.</p>
+  </section>
+
+  <!-- INTERACTIVE RUNNER -->
+  <section>
+    <div class="kicker"><span class="no">02</span><h2>Watch it work</h2></div>
+    <p class="sub">Press play. SOFIDR runs in four steps: look at the data, line up its strategies, score each one, then pick the winner. Every number you see is from the real run.</p>
+
+    <div class="runner-head">
+      <button class="run-btn" id="run"><span class="play">▶</span> Run the analysis</button>
+      <span class="run-hint" id="run-hint">~6 seconds · replays anytime</span>
+    </div>
+
+    <div class="timeline" id="timeline">
+      <button class="tl-step" data-i="0"><div class="bar"><i></i></div><div class="n">STEP 01</div><div class="t">Scan the data</div></button>
+      <button class="tl-step" data-i="1"><div class="bar"><i></i></div><div class="n">STEP 02</div><div class="t">Line up strategies</div></button>
+      <button class="tl-step" data-i="2"><div class="bar"><i></i></div><div class="n">STEP 03</div><div class="t">Score each one</div></button>
+      <button class="tl-step" data-i="3"><div class="bar"><i></i></div><div class="n">STEP 04</div><div class="t">Pick the winner</div></button>
+    </div>
+
+    <!-- phase 1 -->
+    <div class="phase" id="ph0">
+      <div class="ph-h"><span class="dot"></span><h3>Step 1 — Scan the data</h3></div>
+      <p class="ph-d">SOFIDR measures the data before changing anything, so its choice fits what's actually there.</p>
+      <div class="findings" id="findings"></div>
+      <div class="tagrow" id="scan-tags"></div>
+    </div>
+
+    <!-- phase 2 -->
+    <div class="phase" id="ph1">
+      <div class="ph-h"><span class="dot"></span><h3>Step 2 — Line up the strategies</h3></div>
+      <p class="ph-d">SOFIDR keeps a set of ready-made prep strategies. Each suits a different kind of data — there's no single method that's best for everything.</p>
+      <div class="strats" id="strats"></div>
+    </div>
+
+    <!-- phase 3 -->
+    <div class="phase" id="ph2">
+      <div class="ph-h"><span class="dot"></span><h3>Step 3 — Score each one</h3></div>
+      <p class="ph-d">Every strategy is tested the same way on the same data and given one score from 0 to 1. Higher is better.</p>
+      <p class="lb-cap">The score (called <b>SEI</b>) blends four things — accuracy, consistency, how much data was kept, and how simple the result is. The full breakdown is explained below.</p>
+      <div class="lb" id="leaderboard"></div>
+    </div>
+
+    <!-- phase 4 -->
+    <div class="phase" id="ph3">
+      <div class="ph-h"><span class="dot"></span><h3>Step 4 — Pick the winner</h3></div>
+      <p class="ph-d">The highest score wins. Here's what SOFIDR chose, and the plain reason why.</p>
+      <div class="winner">
+        <div class="win-hero">
+          <div class="win-ico" id="w-ico">🌿</div>
+          <div>
+            <div class="win-star">★ WINNER</div>
+            <div class="win-name" id="w-name">Guerrilla</div>
+            <div class="win-tag" id="w-tag"></div>
+          </div>
+          <div class="win-sei"><div class="v" id="w-sei">—</div><div class="l">SEI score</div></div>
+        </div>
+        <p class="why" id="w-why"></p>
+        <div class="breakdown" id="breakdown"></div>
+        <div class="outcome">
+          <div class="big" id="w-acc">—</div>
+          <div class="ot">accuracy in testing. <b>That's the payoff:</b> the prep recipe was chosen for this data, not picked by habit.</div>
+        </div>
+        <div class="recipe" id="recipe"></div>
+        <div class="confirm" id="confirm"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEI EXPLAINER -->
+  <section>
+    <div class="kicker"><span class="no">03</span><h2>How the score works</h2></div>
+    <p class="sub">Each strategy gets a single score, the <b>Strategic Efficiency Index (SEI)</b>, from 0 to 1. It combines four things so no strategy can win on one measure while quietly hurting the rest.</p>
+    <div class="sei-grid">
+      <div class="sei-card"><div class="pct">40%</div><div class="nm">Accuracy</div><div class="ds">Is the model's prediction right?</div></div>
+      <div class="sei-card"><div class="pct">25%</div><div class="nm">Consistency</div><div class="ds">Does it hold up on data it hasn't seen before?</div></div>
+      <div class="sei-card"><div class="pct">20%</div><div class="nm">Data kept</div><div class="ds">Did it avoid throwing away too many records?</div></div>
+      <div class="sei-card"><div class="pct">15%</div><div class="nm">Simplicity</div><div class="ds">Is the prepared data still easy to work with?</div></div>
+    </div>
+    <p class="sei-foot">A method that's accurate but unstable, or accurate but discards half the data, scores lower overall. <b>One combined number keeps the trade-offs honest.</b></p>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <a href="https://sofidr.jayasaagarc.com/" target="_blank" rel="noopener">See the live tool ↗</a>
+      <div class="note2">These are real results from one SOFIDR run on the sample data above. The live tool runs the same analysis on your own file.</div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+const DATA = {
+ "n": 1000,
+ "d": 12,
+ "churn_pct": 18.2,
+ "missing_total_charges_pct": 8.0,
+ "missing_overall_pct": 0.67,
+ "balance": 0.222,
+ "minority": 182,
+ "corr": 0.208,
+ "dim_ratio": 0.012,
+ "tags": [
+  "some_missing",
+  "imbalanced"
+ ],
+ "cold_start": "guerrilla",
+ "best": "guerrilla",
+ "selected": "guerrilla",
+ "reason": "exploit prior knowledge (1 runs)",
+ "refine": [
+  {
+   "iteration": 1,
+   "sigma": 0.01,
+   "current": "guerrilla",
+   "current_sei": 0.9492,
+   "best_alternative": "reconnaissance",
+   "alt_sei": 0.9539,
+   "switched": false
+  },
+  {
+   "iteration": 2,
+   "sigma": 0.02,
+   "current": "guerrilla",
+   "current_sei": 0.9503,
+   "best_alternative": "diplomat",
+   "alt_sei": 0.9522,
+   "switched": false
+  }
+ ],
+ "columns": [
+  "tenure_months",
+  "monthly_charges",
+  "total_charges",
+  "num_support_tickets",
+  "avg_resolution_hours",
+  "contract_length",
+  "num_services",
+  "late_payments",
+  "monthly_data_gb",
+  "age",
+  "satisfaction_score",
+  "autopay_enrolled"
+ ],
+ "preview": [
+  {
+   "tenure_months": 25,
+   "monthly_charges": 90.59,
+   "total_charges": 2321.41,
+   "num_support_tickets": 3,
+   "contract_length": 1,
+   "satisfaction_score": 3,
+   "churned": 0
+  },
+  {
+   "tenure_months": 63,
+   "monthly_charges": 45.19,
+   "total_charges": 3073.14,
+   "num_support_tickets": 6,
+   "contract_length": 1,
+   "satisfaction_score": 3,
+   "churned": 0
+  },
+  {
+   "tenure_months": 39,
+   "monthly_charges": 84.81,
+   "total_charges": null,
+   "num_support_tickets": 6,
+   "contract_length": 1,
+   "satisfaction_score": 4,
+   "churned": 0
+  },
+  {
+   "tenure_months": 55,
+   "monthly_charges": 46.47,
+   "total_charges": 2415.38,
+   "num_support_tickets": 5,
+   "contract_length": 1,
+   "satisfaction_score": 3,
+   "churned": 0
+  },
+  {
+   "tenure_months": 48,
+   "monthly_charges": 64.69,
+   "total_charges": 2981.02,
+   "num_support_tickets": 4,
+   "contract_length": 1,
+   "satisfaction_score": 2,
+   "churned": 1
+  },
+  {
+   "tenure_months": 12,
+   "monthly_charges": 85.18,
+   "total_charges": null,
+   "num_support_tickets": 1,
+   "contract_length": 1,
+   "satisfaction_score": 4,
+   "churned": 0
+  },
+  {
+   "tenure_months": 41,
+   "monthly_charges": 66.15,
+   "total_charges": 2443.79,
+   "num_support_tickets": 3,
+   "contract_length": 12,
+   "satisfaction_score": 3,
+   "churned": 0
+  },
+  {
+   "tenure_months": 52,
+   "monthly_charges": 64.73,
+   "total_charges": 3582.21,
+   "num_support_tickets": 4,
+   "contract_length": 12,
+   "satisfaction_score": 3,
+   "churned": 0
+  }
+ ],
+ "board": [
+  {
+   "name": "guerrilla",
+   "icon": "\ud83c\udf3f",
+   "paper": true,
+   "target": "Imbalanced classes (balance < 0.5)",
+   "sei": 0.9508,
+   "acc": 0.878,
+   "stab": 0.9984,
+   "ret": 1.0,
+   "simp": 1.0
+  },
+  {
+   "name": "diplomat",
+   "icon": "\ud83d\udd4a\ufe0f",
+   "paper": false,
+   "target": "Features with complex interdependencies",
+   "sei": 0.9503,
+   "acc": 0.879,
+   "stab": 0.9947,
+   "ret": 1.0,
+   "simp": 1.0
+  },
+  {
+   "name": "siege",
+   "icon": "\ud83c\udff0",
+   "paper": false,
+   "target": "Complex missing patterns, structured data",
+   "sei": 0.9491,
+   "acc": 0.876,
+   "stab": 0.9947,
+   "ret": 1.0,
+   "simp": 1.0
+  },
+  {
+   "name": "reconnaissance",
+   "icon": "\ud83d\udd2d",
+   "paper": true,
+   "target": "Clean data, minimal intervention",
+   "sei": 0.9487,
+   "acc": 0.875,
+   "stab": 0.9948,
+   "ret": 1.0,
+   "simp": 1.0
+  },
+  {
+   "name": "phalanx",
+   "icon": "\ud83d\udee1\ufe0f",
+   "paper": true,
+   "target": "General-purpose, moderate missingness",
+   "sei": 0.9348,
+   "acc": 0.878,
+   "stab": 0.9937,
+   "ret": 0.926,
+   "simp": 1.0
+  },
+  {
+   "name": "skirmisher",
+   "icon": "\ud83c\udff9",
+   "paper": true,
+   "target": "High-dimensional data (d/n > 0.1)",
+   "sei": 0.9342,
+   "acc": 0.875,
+   "stab": 0.9912,
+   "ret": 1.0,
+   "simp": 0.909
+  },
+  {
+   "name": "heavy_cavalry",
+   "icon": "\u2694\ufe0f",
+   "paper": true,
+   "target": "Highly correlated features",
+   "sei": 0.8843,
+   "acc": 0.823,
+   "stab": 0.9929,
+   "ret": 0.979,
+   "simp": 0.741
+  },
+  {
+   "name": "scorched_earth",
+   "icon": "\ud83d\udd25",
+   "paper": true,
+   "target": "Maximum/aggressive preprocessing",
+   "sei": 0.8748,
+   "acc": 0.832,
+   "stab": 0.9828,
+   "ret": 0.926,
+   "simp": 0.741
+  }
+ ]
+};
+
+// plain-language, non-jargon descriptions of each strategy
+const BLURB = {
+  phalanx:"Balanced clean-up: fill gaps, trim outliers, put values on one scale.",
+  skirmisher:"Keeps only the most useful columns. Good when there are many.",
+  heavy_cavalry:"Merges overlapping columns into fewer. Good when columns repeat.",
+  guerrilla:"Evens out uneven outcome groups. Good when one result is rare.",
+  scorched_earth:"The most aggressive clean-up — every step turned on.",
+  reconnaissance:"Barely touches the data. Good when it's already clean.",
+  siege:"Careful gap-filling for complicated missing patterns.",
+  diplomat:"Smart gap-filling that uses how columns relate to each other.",
+};
+const COLLABEL = {
+  tenure_months:"Tenure (mo)", monthly_charges:"Monthly ($)", total_charges:"Total ($)",
+  num_support_tickets:"Support tickets", satisfaction_score:"Satisfaction", contract_length:"Contract (mo)",
+};
+const SHOW = ["tenure_months","monthly_charges","total_charges","num_support_tickets","satisfaction_score","contract_length"];
+
+function heat(v){
+  const lo=0.80, hi=0.98; let t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));
+  const s=[[214,88,74],[213,147,0],[16,163,127]]; const seg=t<.5?0:1, f=t<.5?t/.5:(t-.5)/.5;
+  const a=s[seg], b=s[seg+1]; const c=a.map((x,i)=>Math.round(x+(b[i]-x)*f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+/* ---------- build the sample-data section ---------- */
+function buildData(){
+  document.getElementById("s-n").textContent = DATA.n.toLocaleString();
+  document.getElementById("data-chips").innerHTML = `
+    <span class="chip"><b>${DATA.n.toLocaleString()}</b> customers</span>
+    <span class="chip">Predict: <b>will they cancel</b></span>
+    <span class="chip"><b>${DATA.churn_pct}%</b> cancelled (uneven)</span>
+    <span class="chip"><b>${DATA.missing_total_charges_pct}%</b> missing in Total charges</span>`;
+
+  const t = document.getElementById("data-table");
+  let head = "<thead><tr><th>Customer</th>" + SHOW.map(c=>`<th>${COLLABEL[c]}</th>`).join("") + "<th>Cancelled?</th></tr></thead>";
+  let body = "<tbody>" + DATA.preview.map((row,i)=>{
+    const cells = SHOW.map(c=>{
+      const v = row[c];
+      if(v===null || v===undefined) return `<td class="miss">— missing</td>`;
+      return `<td>${v}</td>`;
+    }).join("");
+    const churn = row.churned ? `<td class="yes">Yes</td>` : `<td class="no2">No</td>`;
+    return `<tr><td>#${1001+i}</td>${cells}${churn}</tr>`;
+  }).join("") + "</tbody>";
+  t.innerHTML = head + body;
+}
+
+/* ---------- phase content ---------- */
+function buildPhases(){
+  // step 1 findings (plain words, real numbers)
+  document.getElementById("findings").innerHTML = `
+    <div class="finding"><div class="fl">Outcome groups</div><div class="fv">${DATA.churn_pct}% vs ${(100-DATA.churn_pct).toFixed(1)}%</div><div class="fx">Very uneven — cancellations are rare.</div></div>
+    <div class="finding"><div class="fl">Missing values</div><div class="fv">Total charges</div><div class="fx">${DATA.missing_total_charges_pct}% of records have a gap.</div></div>
+    <div class="finding"><div class="fl">Column overlap</div><div class="fv">Low</div><div class="fx">Columns mostly carry their own info.</div></div>`;
+  document.getElementById("scan-tags").innerHTML =
+    `<span class="ttag">finding: uneven groups</span><span class="ttag">finding: some missing values</span>`;
+
+  // step 2 strategy cards (paper's formations, plain blurbs)
+  document.getElementById("strats").innerHTML = DATA.board.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(f=>`
+    <div class="strat"><div class="si">${f.icon}</div><div><div class="sn">${f.name}${f.paper?"":' · extra'}</div><div class="sd">${BLURB[f.name]||f.target}</div></div></div>`).join("");
+
+  // step 3 leaderboard rows (ranked, bars fill on reveal)
+  document.getElementById("leaderboard").innerHTML = DATA.board.map((r,i)=>`
+    <div class="lrow ${i===0?"first":""}" data-i="${i}">
+      <div class="ln"><span class="li">${r.icon}</span>${r.name}${r.paper?"":'<span class="ex">extra</span>'}</div>
+      <div class="ltrack"><div class="lfill" style="background:${heat(r.sei)}" data-w="${(r.sei*100).toFixed(1)}%"></div></div>
+      <div class="lval" style="color:${heat(r.sei)}">${r.sei.toFixed(3)}</div>
+    </div>`).join("");
+
+  // step 4 winner
+  const win = DATA.board.find(r=>r.name===DATA.best) || DATA.board[0];
+  document.getElementById("w-ico").textContent = win.icon;
+  document.getElementById("w-name").textContent = win.name;
+  document.getElementById("w-tag").textContent = BLURB[win.name] || win.target;
+  document.getElementById("w-sei").textContent = win.sei.toFixed(4);
+  document.getElementById("w-acc").textContent = (win.acc*100).toFixed(1) + "%";
+  document.getElementById("w-why").innerHTML =
+    `The data's biggest problem was the <b>uneven outcome groups</b> — only ${DATA.churn_pct}% of customers cancelled. ` +
+    `<b>${win.name[0].toUpperCase()+win.name.slice(1)}</b> is the strategy built for exactly that: it evens out the groups so the model pays attention to the rare "will cancel" customers instead of ignoring them. It also fills the missing Total charges values. Across all strategies tested, it scored highest.`;
+
+  const comps = [["Accuracy","40%",win.acc],["Consistency","25%",win.stab],["Data kept","20%",win.ret],["Simplicity","15%",win.simp]];
+  document.getElementById("breakdown").innerHTML = comps.map(c=>`
+    <div class="bd"><div class="k">${c[0]} <span class="wt">${c[1]}</span></div><div class="v">${c[2].toFixed(3)}</div>
+    <div class="mini"><i data-w="${(c[2]*100).toFixed(1)}%"></i></div></div>`).join("");
+
+  document.getElementById("recipe").innerHTML =
+    `<div style="margin-bottom:4px">The recipe SOFIDR applied:</div>` +
+    `<span class="step"><span class="num">1</span> Fill the missing values</span>` +
+    `<span class="step"><span class="num">2</span> Even out the groups (SMOTE)</span>` +
+    `<span class="step"><span class="num">3</span> Put all numbers on one scale</span>`;
+
+  const switched = DATA.refine.some(x=>x.switched);
+  document.getElementById("confirm").innerHTML =
+    `<span class="ck">✓</span><div>SOFIDR re-checked its choice under small random changes to the data, ${DATA.refine.length} times. ` +
+    (switched ? `It adjusted the pick when a better option appeared.` : `The winner held every time.`) + `</div>`;
+}
+
+/* ---------- the live run ---------- */
+const phases = [0,1,2,3].map(i=>document.getElementById("ph"+i));
+const steps  = [...document.querySelectorAll(".tl-step")];
+let timers = [];
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function clearTimers(){ timers.forEach(clearTimeout); timers=[]; }
+
+function setActive(idx){
+  steps.forEach((s,i)=>{
+    s.classList.toggle("done", i<=idx);
+    s.classList.toggle("active", i===idx);
+  });
+}
+
+function fillLeaderboard(){
+  const rows=[...document.querySelectorAll("#leaderboard .lrow")];
+  rows.forEach((row,i)=>{
+    const f=row.querySelector(".lfill");
+    const delay = reduce?0:i*90;
+    timers.push(setTimeout(()=>{ f.style.width=f.dataset.w; row.classList.add("show"); }, delay));
+  });
+}
+function fillBreakdown(){
+  document.querySelectorAll("#breakdown .mini i").forEach(i=>{ i.style.width=i.dataset.w; });
+}
+
+function reveal(upto){
+  phases.forEach((p,i)=>p.classList.toggle("on", i<=upto));
+  setActive(upto);
+  if(upto>=2) fillLeaderboard();
+  if(upto>=3) fillBreakdown();
+}
+
+function run(){
+  clearTimers();
+  phases.forEach(p=>p.classList.remove("on"));
+  document.querySelectorAll("#leaderboard .lrow").forEach(r=>{ r.classList.remove("show"); r.querySelector(".lfill").style.width="0"; });
+  document.querySelectorAll("#breakdown .mini i").forEach(i=>i.style.width="0");
+  setActive(-1);
+
+  if(reduce){ reveal(3); return; }
+
+  const cum=[200, 1400, 2700, 4500];  // when each phase turns on
+  [0,1,2,3].forEach((idx,k)=>{
+    timers.push(setTimeout(()=>{
+      phases[idx].classList.add("on");
+      setActive(idx);
+      if(idx===2) fillLeaderboard();
+      if(idx===3) fillBreakdown();
+      phases[idx].scrollIntoView({behavior:"smooth", block:"center"});
+    }, cum[k]));
+  });
+}
+
+document.getElementById("run").addEventListener("click", run);
+steps.forEach(s=> s.addEventListener("click", ()=>{ clearTimers();
+  document.querySelectorAll("#leaderboard .lrow").forEach(r=>{ r.classList.remove("show"); r.querySelector(".lfill").style.width="0"; });
+  reveal(+s.dataset.i);
+}));
+
+buildData();
+buildPhases();
+// leave phases dim until the user presses play (or reduced-motion shows them)
+if(reduce) reveal(3);
+</script>
+</body>
+</html>

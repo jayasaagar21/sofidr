@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vercel/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.local
+.DS_Store
+.pytest_cache/
+tests/fixture.csv

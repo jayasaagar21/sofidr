@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SOFIDR — Situation Board</title>
+<meta name="description" content="SOFIDR surveys a dataset's terrain and deploys the preprocessing formation that scores highest on the Strategic Efficiency Index. Interactive demo with real engine output." />
+<style>
+  :root{
+    --bg:#0a0f1a; --bg-2:#0e1626; --surface:#141f33; --surface-2:#1b2942;
+    --line:rgba(122,144,184,.14); --line-strong:rgba(122,144,184,.30);
+    --ink:#e7edf7; --ink-dim:#9fb0c8; --ink-faint:#6b7d98;
+    --steel:#6aa9e0; --steel-soft:rgba(106,169,224,.12);
+    --amber:#e3b341; --amber-soft:rgba(227,179,65,.13); --amber-line:rgba(227,179,65,.4);
+    --good:#3fb950; --mid:#d4a72c; --bad:#da5a47;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--sans);
+    line-height:1.5; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  /* topographic / reconnaissance contour motif — the page's signature backdrop */
+  body::before{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      repeating-radial-gradient(circle at 14% 16%, rgba(106,169,224,.055) 0 1px, transparent 1px 52px),
+      repeating-radial-gradient(circle at 88% 82%, rgba(227,179,65,.045) 0 1px, transparent 1px 64px),
+      radial-gradient(900px 600px at 70% -10%, rgba(106,169,224,.08), transparent 60%);
+    -webkit-mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent 100%);
+    mask-image:linear-gradient(180deg,#000 0,#000 70%,transparent 100%);
+  }
+  .wrap{position:relative; z-index:1; max-width:1080px; margin:0 auto; padding:0 22px}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.28em; text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .eyebrow .dot{color:var(--steel)}
+
+  /* ---- header ---- */
+  header{padding:42px 0 26px}
+  .topline{display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap}
+  .badge{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--amber); border:1px solid var(--amber-line); background:var(--amber-soft);
+    padding:6px 10px; border-radius:999px; white-space:nowrap;
+  }
+  h1{
+    font-size:clamp(34px,6vw,60px); line-height:.98; letter-spacing:-.025em; font-weight:800;
+    margin:20px 0 0; max-width:18ch;
+  }
+  h1 .em{color:var(--steel)}
+  .deck{margin:16px 0 0; max-width:62ch; color:var(--ink-dim); font-size:16.5px}
+  .deck b{color:var(--ink); font-weight:600}
+  .live{
+    display:inline-flex; align-items:center; gap:8px; margin-top:20px;
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.04em; text-decoration:none;
+    color:#08111f; background:var(--amber); padding:11px 16px; border-radius:8px; font-weight:600;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .live:hover{transform:translateY(-1px); box-shadow:0 6px 18px rgba(227,179,65,.25)}
+  .live .arrow{transition:transform .15s ease}
+  .live:hover .arrow{transform:translate(2px,-2px)}
+
+  .rule{height:1px; background:var(--line-strong); margin:8px 0 0}
+
+  section{padding:30px 0}
+  .sec-head{display:flex; align-items:baseline; gap:14px; margin:0 0 18px}
+  .sec-head h2{font-size:13px; letter-spacing:.22em; text-transform:uppercase; font-family:var(--mono); color:var(--ink-dim); margin:0; font-weight:600}
+  .sec-head .meta{font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); margin-left:auto}
+
+  /* ---- battlefield selector ---- */
+  .fields{display:grid; grid-template-columns:repeat(5,1fr); gap:10px}
+  .field{
+    text-align:left; cursor:pointer; color:var(--ink-dim);
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:14px 13px 13px; transition:border-color .15s ease, background .15s ease, transform .15s ease;
+    display:flex; flex-direction:column; gap:7px; min-height:104px;
+  }
+  .field:hover{border-color:var(--line-strong); transform:translateY(-2px)}
+  .field:focus-visible{outline:2px solid var(--steel); outline-offset:2px}
+  .field .code{font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--ink-faint); text-transform:uppercase}
+  .field .nm{font-weight:700; color:var(--ink); font-size:15px; text-transform:capitalize; letter-spacing:-.01em}
+  .field .dim{font-family:var(--mono); font-size:11px; color:var(--ink-faint)}
+  .field[aria-pressed="true"]{
+    border-color:var(--amber-line); background:linear-gradient(180deg,var(--amber-soft),var(--surface));
+  }
+  .field[aria-pressed="true"] .code{color:var(--amber)}
+
+  /* ---- deployment grid ---- */
+  .deploy{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:4px}
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px;
+  }
+  .panel .label{font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 14px}
+
+  /* terrain readout */
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px 18px}
+  .stat{display:flex; flex-direction:column; gap:3px}
+  .stat .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint)}
+  .stat .v{font-family:var(--mono); font-size:18px; color:var(--ink); font-weight:600}
+  .stat .v small{font-size:12px; color:var(--ink-dim); font-weight:400}
+  .tags{display:flex; flex-wrap:wrap; gap:7px; margin-top:16px}
+  .tag{font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--steel); border:1px solid var(--steel-soft); background:var(--steel-soft); padding:4px 9px; border-radius:6px}
+  .cold{margin-top:16px; font-family:var(--mono); font-size:12px; color:var(--ink-faint)}
+  .cold b{color:var(--ink-dim); font-weight:600; text-transform:capitalize}
+
+  /* deployed formation */
+  .deployed{display:flex; flex-direction:column; height:100%}
+  .form-hero{display:flex; align-items:center; gap:16px}
+  .form-ico{font-size:42px; line-height:1; filter:saturate(.9)}
+  .form-name{font-size:26px; font-weight:800; letter-spacing:-.02em; text-transform:capitalize; color:var(--amber)}
+  .form-tgt{font-family:var(--mono); font-size:12px; color:var(--ink-dim); margin-top:3px}
+  .sei-big{margin-left:auto; text-align:right}
+  .sei-big .n{font-family:var(--mono); font-size:30px; font-weight:700; color:var(--ink); letter-spacing:-.01em}
+  .sei-big .l{font-family:var(--mono); font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-faint)}
+
+  .readiness{margin-top:22px; display:flex; flex-direction:column; gap:13px}
+  .bar-row{display:grid; grid-template-columns:96px 1fr 42px; align-items:center; gap:12px}
+  .bar-row .bk{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint)}
+  .track{height:7px; border-radius:4px; background:rgba(122,144,184,.13); overflow:hidden}
+  .fill{height:100%; width:0; border-radius:4px; background:linear-gradient(90deg,var(--steel),#8fc1ee); transition:width .7s cubic-bezier(.2,.7,.2,1)}
+  .bar-row .bv{font-family:var(--mono); font-size:12px; color:var(--ink-dim); text-align:right}
+  .pick{
+    margin-top:auto; padding-top:18px; font-family:var(--mono); font-size:12px; color:var(--ink-dim);
+    border-top:1px solid var(--line); display:flex; gap:8px; align-items:flex-start;
+  }
+  .pick .led{width:7px; height:7px; border-radius:50%; background:var(--amber); margin-top:5px; flex:none; box-shadow:0 0 0 3px var(--amber-soft)}
+  .pick b{color:var(--ink); font-weight:600; text-transform:capitalize}
+
+  /* ---- after-action scoreboard ---- */
+  .board{background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+  table{width:100%; border-collapse:collapse; font-size:14px}
+  thead th{
+    font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-faint);
+    text-align:right; padding:13px 14px; background:rgba(8,14,26,.5); border-bottom:1px solid var(--line-strong); font-weight:600;
+  }
+  thead th.l{text-align:left}
+  tbody td{padding:12px 14px; border-bottom:1px solid var(--line); text-align:right; font-family:var(--mono)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr{transition:background .12s ease}
+  tbody tr:hover{background:rgba(106,169,224,.05)}
+  tbody tr.win{background:var(--amber-soft)}
+  tbody tr.win:hover{background:rgba(227,179,65,.18)}
+  .rank{color:var(--ink-faint); font-size:12px; width:34px}
+  td.nm{text-align:left; font-family:var(--sans); font-weight:600; text-transform:capitalize; color:var(--ink)}
+  td.nm .ic{margin-right:8px}
+  td.nm .ex{font-family:var(--mono); font-size:9px; letter-spacing:.1em; color:var(--ink-faint); text-transform:uppercase; margin-left:8px; vertical-align:middle; border:1px solid var(--line); padding:1px 5px; border-radius:4px}
+  .seicell{display:inline-flex; align-items:center; gap:9px; justify-content:flex-end}
+  .seicell .v{font-weight:700; font-variant-numeric:tabular-nums}
+  .seicell .chip{width:30px; height:5px; border-radius:3px}
+  td.dim2{color:var(--ink-dim); font-variant-numeric:tabular-nums}
+
+  /* ---- field manual note ---- */
+  .manual{
+    background:linear-gradient(180deg,var(--bg-2),var(--surface)); border:1px solid var(--line);
+    border-left:2px solid var(--steel); border-radius:12px; padding:20px 22px;
+  }
+  .manual .mh{font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--steel); margin:0 0 10px}
+  .manual p{margin:0 0 10px; color:var(--ink-dim); font-size:14.5px}
+  .manual p:last-child{margin-bottom:0}
+  .manual b{color:var(--ink); font-weight:600}
+  .manual code{font-family:var(--mono); font-size:12.5px; color:var(--amber); background:rgba(227,179,65,.08); padding:1px 6px; border-radius:5px}
+
+  /* ---- footer ---- */
+  footer{padding:34px 0 56px; border-top:1px solid var(--line); margin-top:18px}
+  .foot{display:flex; justify-content:space-between; align-items:center; gap:18px; flex-wrap:wrap}
+  .foot .links{display:flex; gap:10px; flex-wrap:wrap}
+  .foot a{
+    font-family:var(--mono); font-size:12.5px; text-decoration:none; color:var(--ink);
+    border:1px solid var(--line-strong); padding:10px 14px; border-radius:8px;
+    transition:border-color .15s ease, color .15s ease;
+    display:inline-flex; gap:8px; align-items:center;
+  }
+  .foot a:hover{border-color:var(--steel); color:var(--steel)}
+  .foot a.prime{border-color:var(--amber-line); color:var(--amber)}
+  .foot a.prime:hover{background:var(--amber-soft)}
+  .foot .note{font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); max-width:40ch}
+
+  .reveal{animation:rise .45s cubic-bezier(.2,.7,.2,1)}
+  @keyframes rise{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+
+  @media (max-width:820px){
+    .fields{grid-template-columns:repeat(2,1fr)}
+    .deploy{grid-template-columns:1fr}
+    .foot{flex-direction:column; align-items:flex-start}
+    thead th.opt,tbody td.opt{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important; animation:none !important}
+    .fill{transition:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="topline">
+      <div class="eyebrow"><span class="dot">◆</span> SOFIDR &nbsp;//&nbsp; SITUATION BOARD</div>
+      <div class="badge" title="Every number on this page was captured from real SOFIDR runs in Python — not computed in your browser, and not invented.">● Static demo · real engine output</div>
+    </div>
+    <h1>Survey the terrain.<br>Deploy the <span class="em">formation</span>.</h1>
+    <p class="deck">SOFIDR profiles a dataset, then picks the preprocessing pipeline that scores highest on the <b>Strategic Efficiency Index</b> — a blend of accuracy, stability, data retention, and simplicity. Pick a battlefield below to see what it deployed and why.</p>
+    <a class="live" href="https://sofidr.jayasaagarc.com/" target="_blank" rel="noopener">Open the live deployment <span class="arrow">↗</span></a>
+    <div class="rule"></div>
+  </header>
+
+  <section aria-label="Select a dataset">
+    <div class="sec-head">
+      <h2>Select battlefield</h2>
+      <span class="meta" id="field-meta">5 archetypes · click to deploy</span>
+    </div>
+    <div class="fields" id="fields"></div>
+  </section>
+
+  <section aria-label="Deployment readout">
+    <div class="deploy">
+      <div class="panel reveal" id="terrain-panel">
+        <p class="label">Reconnaissance — terrain</p>
+        <div class="stat-grid" id="terrain-stats"></div>
+        <div class="tags" id="terrain-tags"></div>
+        <div class="cold" id="terrain-cold"></div>
+      </div>
+
+      <div class="panel deployed reveal" id="deploy-panel">
+        <p class="label">Deployed formation</p>
+        <div class="form-hero">
+          <div class="form-ico" id="d-ico">🔭</div>
+          <div>
+            <div class="form-name" id="d-name">—</div>
+            <div class="form-tgt" id="d-tgt">—</div>
+          </div>
+          <div class="sei-big">
+            <div class="n" id="d-sei">—</div>
+            <div class="l">SEI</div>
+          </div>
+        </div>
+        <div class="readiness" id="readiness"></div>
+        <div class="pick"><span class="led"></span><div id="d-reason">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="Formation scoreboard">
+    <div class="sec-head">
+      <h2>After-action report</h2>
+      <span class="meta">all formations scored on identical CV folds · ranked by SEI</span>
+    </div>
+    <div class="board">
+      <table>
+        <thead>
+          <tr>
+            <th class="l rank">#</th>
+            <th class="l">Formation</th>
+            <th>SEI</th>
+            <th>Accuracy</th>
+            <th class="opt">Stability</th>
+            <th class="opt">Retention</th>
+            <th class="opt">Simplicity</th>
+          </tr>
+        </thead>
+        <tbody id="board-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-label="Notes">
+    <div class="manual">
+      <p class="mh">Field manual — read the scores honestly</p>
+      <p>The index puts <b>35% of its weight on not changing the data</b> (20% retention + 15% simplicity). The base model here is a Random Forest, which ignores feature scaling — so on clean datasets the minimal formations (<b>reconnaissance</b>, and its kin) win almost by construction, and the aggressive ones lose. That is a real property of this metric-and-model pairing, surfaced rather than hidden.</p>
+      <p>Where SOFIDR earns its keep is matched terrain: on the <b>imbalanced</b> battlefield, <b>guerrilla</b> deploys SMOTE and edges out doing nothing. Switch the base model to logistic regression in the live app and the formations spread apart.</p>
+      <p>This page shows captured output. The live version computes every score on demand from your own CSV via the FastAPI engine — deploy it with <code>vercel deploy --prod</code>.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot">
+      <div class="links">
+        <a class="prime" href="https://sofidr.jayasaagarc.com/" target="_blank" rel="noopener">Open live deployment ↗</a>
+      </div>
+      <div class="note">Battlefields are real datasets; scores are real SOFIDR runs. Numbers are captured, not live — the deployed app runs them on demand.</div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+const DATA = {
+ "breast_cancer": {
+  "label": "breast cancer",
+  "descr": "Real-world medical diagnosis. 569 samples, 30 features, balanced.",
+  "terrain": {
+   "n": 569,
+   "d": 30,
+   "dim_ratio": 0.053,
+   "missing": 0.0,
+   "balance": 0.594,
+   "minority": 212,
+   "corr": 0.395,
+   "tags": [
+    "well_behaved"
+   ]
+  },
+  "cold_start": "phalanx",
+  "best": "reconnaissance",
+  "selected": "reconnaissance",
+  "reason": "exploit prior knowledge (1 runs)",
+  "board": [
+   {
+    "name": "reconnaissance",
+    "icon": "\ud83d\udd2d",
+    "paper": true,
+    "target": "Clean data, minimal intervention",
+    "sei": 0.9786,
+    "acc": 0.9543,
+    "stab": 0.9876,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "siege",
+    "icon": "\ud83c\udff0",
+    "paper": false,
+    "target": "Complex missing patterns, structured data",
+    "sei": 0.9786,
+    "acc": 0.9543,
+    "stab": 0.9876,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "diplomat",
+    "icon": "\ud83d\udd4a\ufe0f",
+    "paper": false,
+    "target": "Features with complex interdependencies",
+    "sei": 0.9786,
+    "acc": 0.9543,
+    "stab": 0.9876,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "guerrilla",
+    "icon": "\ud83c\udf3f",
+    "paper": true,
+    "target": "Imbalanced classes (balance < 0.5)",
+    "sei": 0.9746,
+    "acc": 0.949,
+    "stab": 0.9797,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "phalanx",
+    "icon": "\ud83d\udee1\ufe0f",
+    "paper": true,
+    "target": "General-purpose, moderate missingness",
+    "sei": 0.9162,
+    "acc": 0.949,
+    "stab": 0.9869,
+    "ret": 0.699,
+    "simp": 1.0
+   },
+   {
+    "name": "skirmisher",
+    "icon": "\ud83c\udff9",
+    "paper": true,
+    "target": "High-dimensional data (d/n > 0.1)",
+    "sei": 0.8959,
+    "acc": 0.9368,
+    "stab": 0.9846,
+    "ret": 1.0,
+    "simp": 0.5
+   },
+   {
+    "name": "heavy_cavalry",
+    "icon": "\u2694\ufe0f",
+    "paper": true,
+    "target": "Highly correlated features",
+    "sei": 0.8678,
+    "acc": 0.9526,
+    "stab": 0.9845,
+    "ret": 0.87,
+    "simp": 0.444
+   },
+   {
+    "name": "scorched_earth",
+    "icon": "\ud83d\udd25",
+    "paper": true,
+    "target": "Maximum/aggressive preprocessing",
+    "sei": 0.8289,
+    "acc": 0.9456,
+    "stab": 0.9764,
+    "ret": 0.699,
+    "simp": 0.444
+   }
+  ]
+ },
+ "high_dimensional": {
+  "label": "high dimensional",
+  "descr": "Synthetic. 300 samples, 40 features (d/n > 0.1).",
+  "terrain": {
+   "n": 300,
+   "d": 40,
+   "dim_ratio": 0.133,
+   "missing": 0.0,
+   "balance": 0.987,
+   "minority": 149,
+   "corr": 0.078,
+   "tags": [
+    "high_dimensional"
+   ]
+  },
+  "cold_start": "skirmisher",
+  "best": "guerrilla",
+  "selected": "guerrilla",
+  "reason": "exploit prior knowledge (1 runs)",
+  "board": [
+   {
+    "name": "guerrilla",
+    "icon": "\ud83c\udf3f",
+    "paper": true,
+    "target": "Imbalanced classes (balance < 0.5)",
+    "sei": 0.9071,
+    "acc": 0.7833,
+    "stab": 0.9751,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "reconnaissance",
+    "icon": "\ud83d\udd2d",
+    "paper": true,
+    "target": "Clean data, minimal intervention",
+    "sei": 0.9061,
+    "acc": 0.7933,
+    "stab": 0.955,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "siege",
+    "icon": "\ud83c\udff0",
+    "paper": false,
+    "target": "Complex missing patterns, structured data",
+    "sei": 0.9061,
+    "acc": 0.7933,
+    "stab": 0.955,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "diplomat",
+    "icon": "\ud83d\udd4a\ufe0f",
+    "paper": false,
+    "target": "Features with complex interdependencies",
+    "sei": 0.9061,
+    "acc": 0.7933,
+    "stab": 0.955,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "phalanx",
+    "icon": "\ud83d\udee1\ufe0f",
+    "paper": true,
+    "target": "General-purpose, moderate missingness",
+    "sei": 0.8479,
+    "acc": 0.7833,
+    "stab": 0.9623,
+    "ret": 0.72,
+    "simp": 1.0
+   },
+   {
+    "name": "skirmisher",
+    "icon": "\ud83c\udff9",
+    "paper": true,
+    "target": "High-dimensional data (d/n > 0.1)",
+    "sei": 0.8037,
+    "acc": 0.77,
+    "stab": 0.9428,
+    "ret": 1.0,
+    "simp": 0.4
+   },
+   {
+    "name": "heavy_cavalry",
+    "icon": "\u2694\ufe0f",
+    "paper": true,
+    "target": "Highly correlated features",
+    "sei": 0.7536,
+    "acc": 0.6867,
+    "stab": 0.983,
+    "ret": 0.893,
+    "simp": 0.364
+   },
+   {
+    "name": "scorched_earth",
+    "icon": "\ud83d\udd25",
+    "paper": true,
+    "target": "Maximum/aggressive preprocessing",
+    "sei": 0.7401,
+    "acc": 0.7367,
+    "stab": 0.9875,
+    "ret": 0.72,
+    "simp": 0.364
+   }
+  ]
+ },
+ "imbalanced": {
+  "label": "imbalanced",
+  "descr": "Synthetic. 500 samples, 85:15 class ratio.",
+  "terrain": {
+   "n": 500,
+   "d": 20,
+   "dim_ratio": 0.04,
+   "missing": 0.0,
+   "balance": 0.179,
+   "minority": 76,
+   "corr": 0.106,
+   "tags": [
+    "imbalanced"
+   ]
+  },
+  "cold_start": "guerrilla",
+  "best": "guerrilla",
+  "selected": "guerrilla",
+  "reason": "exploit prior knowledge (1 runs)",
+  "board": [
+   {
+    "name": "guerrilla",
+    "icon": "\ud83c\udf3f",
+    "paper": true,
+    "target": "Imbalanced classes (balance < 0.5)",
+    "sei": 0.9547,
+    "acc": 0.896,
+    "stab": 0.9853,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "reconnaissance",
+    "icon": "\ud83d\udd2d",
+    "paper": true,
+    "target": "Clean data, minimal intervention",
+    "sei": 0.9465,
+    "acc": 0.8799,
+    "stab": 0.9783,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "siege",
+    "icon": "\ud83c\udff0",
+    "paper": false,
+    "target": "Complex missing patterns, structured data",
+    "sei": 0.9465,
+    "acc": 0.8799,
+    "stab": 0.9783,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "diplomat",
+    "icon": "\ud83d\udd4a\ufe0f",
+    "paper": false,
+    "target": "Features with complex interdependencies",
+    "sei": 0.9465,
+    "acc": 0.8799,
+    "stab": 0.9783,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "phalanx",
+    "icon": "\ud83d\udee1\ufe0f",
+    "paper": true,
+    "target": "General-purpose, moderate missingness",
+    "sei": 0.91,
+    "acc": 0.866,
+    "stab": 0.9873,
+    "ret": 0.834,
+    "simp": 1.0
+   },
+   {
+    "name": "skirmisher",
+    "icon": "\ud83c\udff9",
+    "paper": true,
+    "target": "High-dimensional data (d/n > 0.1)",
+    "sei": 0.8934,
+    "acc": 0.8739,
+    "stab": 0.9752,
+    "ret": 1.0,
+    "simp": 0.667
+   },
+   {
+    "name": "heavy_cavalry",
+    "icon": "\u2694\ufe0f",
+    "paper": true,
+    "target": "Highly correlated features",
+    "sei": 0.8643,
+    "acc": 0.86,
+    "stab": 0.9974,
+    "ret": 0.926,
+    "simp": 0.571
+   },
+   {
+    "name": "scorched_earth",
+    "icon": "\ud83d\udd25",
+    "paper": true,
+    "target": "Maximum/aggressive preprocessing",
+    "sei": 0.8429,
+    "acc": 0.864,
+    "stab": 0.9793,
+    "ret": 0.834,
+    "simp": 0.571
+   }
+  ]
+ },
+ "noisy_missing": {
+  "label": "noisy missing",
+  "descr": "Synthetic. 400 samples, 8% missing values + 25% label noise.",
+  "terrain": {
+   "n": 400,
+   "d": 15,
+   "dim_ratio": 0.037,
+   "missing": 0.0787,
+   "balance": 0.923,
+   "minority": 192,
+   "corr": 0.102,
+   "tags": [
+    "severe_missing"
+   ]
+  },
+  "cold_start": "phalanx",
+  "best": "diplomat",
+  "selected": "diplomat",
+  "reason": "exploit prior knowledge (1 runs)",
+  "board": [
+   {
+    "name": "diplomat",
+    "icon": "\ud83d\udd4a\ufe0f",
+    "paper": false,
+    "target": "Features with complex interdependencies",
+    "sei": 0.8783,
+    "acc": 0.715,
+    "stab": 0.9693,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "siege",
+    "icon": "\ud83c\udff0",
+    "paper": false,
+    "target": "Complex missing patterns, structured data",
+    "sei": 0.8717,
+    "acc": 0.6926,
+    "stab": 0.9787,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "reconnaissance",
+    "icon": "\ud83d\udd2d",
+    "paper": true,
+    "target": "Clean data, minimal intervention",
+    "sei": 0.8677,
+    "acc": 0.6851,
+    "stab": 0.9745,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "guerrilla",
+    "icon": "\ud83c\udf3f",
+    "paper": true,
+    "target": "Imbalanced classes (balance < 0.5)",
+    "sei": 0.8622,
+    "acc": 0.6625,
+    "stab": 0.9888,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "skirmisher",
+    "icon": "\ud83c\udff9",
+    "paper": true,
+    "target": "High-dimensional data (d/n > 0.1)",
+    "sei": 0.8188,
+    "acc": 0.6501,
+    "stab": 0.9551,
+    "ret": 1.0,
+    "simp": 0.8
+   },
+   {
+    "name": "phalanx",
+    "icon": "\ud83d\udee1\ufe0f",
+    "paper": true,
+    "target": "General-purpose, moderate missingness",
+    "sei": 0.8088,
+    "acc": 0.6676,
+    "stab": 0.9389,
+    "ret": 0.785,
+    "simp": 1.0
+   },
+   {
+    "name": "heavy_cavalry",
+    "icon": "\u2694\ufe0f",
+    "paper": true,
+    "target": "Highly correlated features",
+    "sei": 0.7932,
+    "acc": 0.6425,
+    "stab": 0.9868,
+    "ret": 0.948,
+    "simp": 0.667
+   },
+   {
+    "name": "scorched_earth",
+    "icon": "\ud83d\udd25",
+    "paper": true,
+    "target": "Maximum/aggressive preprocessing",
+    "sei": 0.7517,
+    "acc": 0.62,
+    "stab": 0.9868,
+    "ret": 0.785,
+    "simp": 0.667
+   }
+  ]
+ },
+ "correlated": {
+  "label": "correlated",
+  "descr": "Synthetic. 350 samples, 20 redundant features.",
+  "terrain": {
+   "n": 350,
+   "d": 25,
+   "dim_ratio": 0.071,
+   "missing": 0.0,
+   "balance": 1.0,
+   "minority": 175,
+   "corr": 0.406,
+   "tags": [
+    "well_behaved"
+   ]
+  },
+  "cold_start": "phalanx",
+  "best": "reconnaissance",
+  "selected": "reconnaissance",
+  "reason": "exploit prior knowledge (2 runs)",
+  "board": [
+   {
+    "name": "reconnaissance",
+    "icon": "\ud83d\udd2d",
+    "paper": true,
+    "target": "Clean data, minimal intervention",
+    "sei": 0.9478,
+    "acc": 0.8829,
+    "stab": 0.9788,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "siege",
+    "icon": "\ud83c\udff0",
+    "paper": false,
+    "target": "Complex missing patterns, structured data",
+    "sei": 0.9478,
+    "acc": 0.8829,
+    "stab": 0.9788,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "diplomat",
+    "icon": "\ud83d\udd4a\ufe0f",
+    "paper": false,
+    "target": "Features with complex interdependencies",
+    "sei": 0.9478,
+    "acc": 0.8829,
+    "stab": 0.9788,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "guerrilla",
+    "icon": "\ud83c\udf3f",
+    "paper": true,
+    "target": "Imbalanced classes (balance < 0.5)",
+    "sei": 0.9432,
+    "acc": 0.8686,
+    "stab": 0.9828,
+    "ret": 1.0,
+    "simp": 1.0
+   },
+   {
+    "name": "phalanx",
+    "icon": "\ud83d\udee1\ufe0f",
+    "paper": true,
+    "target": "General-purpose, moderate missingness",
+    "sei": 0.9195,
+    "acc": 0.8801,
+    "stab": 0.9752,
+    "ret": 0.869,
+    "simp": 1.0
+   },
+   {
+    "name": "skirmisher",
+    "icon": "\ud83c\udff9",
+    "paper": true,
+    "target": "High-dimensional data (d/n > 0.1)",
+    "sei": 0.876,
+    "acc": 0.86,
+    "stab": 0.9853,
+    "ret": 1.0,
+    "simp": 0.571
+   },
+   {
+    "name": "heavy_cavalry",
+    "icon": "\u2694\ufe0f",
+    "paper": true,
+    "target": "Highly correlated features",
+    "sei": 0.855,
+    "acc": 0.8486,
+    "stab": 0.9829,
+    "ret": 0.974,
+    "simp": 0.5
+   },
+   {
+    "name": "scorched_earth",
+    "icon": "\ud83d\udd25",
+    "paper": true,
+    "target": "Maximum/aggressive preprocessing",
+    "sei": 0.8339,
+    "acc": 0.8486,
+    "stab": 0.9829,
+    "ret": 0.869,
+    "simp": 0.5
+   }
+  ]
+ }
+};
+const ORDER = ["breast_cancer","high_dimensional","imbalanced","noisy_missing","correlated"];
+const CODE = {breast_cancer:"BRV-01",high_dimensional:"HDX-02",imbalanced:"IMB-03",noisy_missing:"NSY-04",correlated:"COR-05"};
+
+// SEI -> heat color across a fixed, comparable domain
+function heat(v){
+  const lo=0.80, hi=0.98;
+  let t=Math.max(0,Math.min(1,(v-lo)/(hi-lo)));
+  // red(0) -> amber(.5) -> green(1)
+  const stops=[[218,90,71],[212,167,44],[63,185,80]];
+  const seg=t<.5?0:1, f=t<.5?t/.5:(t-.5)/.5;
+  const a=stops[seg], b=stops[seg+1];
+  const c=a.map((x,i)=>Math.round(x+(b[i]-x)*f));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+const pct = x => (x*100).toFixed(1)+"%";
+
+function buildFields(){
+  const host=document.getElementById("fields");
+  host.innerHTML="";
+  ORDER.forEach((key,i)=>{
+    const d=DATA[key];
+    const b=document.createElement("button");
+    b.className="field"; b.setAttribute("aria-pressed","false");
+    b.dataset.key=key;
+    b.innerHTML=`<div class="code">${CODE[key]}</div>
+      <div class="nm">${d.label}</div>
+      <div class="dim">${d.terrain.n}×${d.terrain.d} · bal ${d.terrain.balance}</div>`;
+    b.addEventListener("click",()=>select(key));
+    host.appendChild(b);
+  });
+}
+
+function select(key){
+  document.querySelectorAll(".field").forEach(f=>
+    f.setAttribute("aria-pressed", f.dataset.key===key ? "true":"false"));
+  const d=DATA[key];
+  const T=d.terrain;
+
+  // terrain stats
+  document.getElementById("terrain-stats").innerHTML=`
+    ${stat("Samples × features", T.n+" × "+T.d)}
+    ${stat("Dimensionality d/n", T.dim_ratio)}
+    ${stat("Missing", pct(T.missing))}
+    ${stat("Class balance", T.balance+" <small>· min n="+T.minority+"</small>")}
+    ${stat("Mean |correlation|", T.corr)}
+    ${stat("Designation", CODE[key])}
+  `;
+  document.getElementById("terrain-tags").innerHTML =
+    T.tags.map(t=>`<span class="tag">${t.replace(/_/g," ")}</span>`).join("");
+  const coldDiffers = d.cold_start!==d.best;
+  document.getElementById("terrain-cold").innerHTML =
+    `cold-start default (Algorithm 1): <b>${d.cold_start}</b>` +
+    (coldDiffers ? ` &nbsp;→&nbsp; multi-formation eval overrode it with <b>${d.best}</b>` : ` &nbsp;·&nbsp; confirmed by eval`);
+
+  // deployed formation
+  const win=d.board.find(r=>r.name===d.best) || d.board[0];
+  document.getElementById("d-ico").textContent=win.icon;
+  document.getElementById("d-name").textContent=win.name;
+  document.getElementById("d-tgt").textContent=win.target;
+  document.getElementById("d-sei").textContent=win.sei.toFixed(4);
+
+  const comps=[["Accuracy",win.acc,"40%"],["Stability",win.stab,"25%"],["Retention",win.ret,"20%"],["Simplicity",win.simp,"15%"]];
+  document.getElementById("readiness").innerHTML = comps.map(c=>`
+    <div class="bar-row">
+      <div class="bk">${c[0]} <span style="color:var(--ink-faint)">${c[2]}</span></div>
+      <div class="track"><div class="fill" data-w="${(c[1]*100).toFixed(1)}%"></div></div>
+      <div class="bv">${c[1].toFixed(3)}</div>
+    </div>`).join("");
+
+  document.getElementById("d-reason").innerHTML =
+    `Bandit policy selected <b>${d.selected}</b> — ${d.reason}.`;
+
+  // scoreboard
+  document.getElementById("board-body").innerHTML = d.board.map((r,i)=>`
+    <tr class="${r.name===d.best?"win":""}">
+      <td class="l rank">${String(i+1).padStart(2,"0")}</td>
+      <td class="nm"><span class="ic">${r.icon}</span>${r.name}${r.paper?"":'<span class="ex">extra</span>'}</td>
+      <td><span class="seicell"><span class="chip" style="background:${heat(r.sei)}"></span><span class="v" style="color:${heat(r.sei)}">${r.sei.toFixed(4)}</span></span></td>
+      <td class="dim2">${r.acc.toFixed(4)}</td>
+      <td class="dim2 opt">${r.stab.toFixed(4)}</td>
+      <td class="dim2 opt">${r.ret.toFixed(3)}</td>
+      <td class="dim2 opt">${r.simp.toFixed(3)}</td>
+    </tr>`).join("");
+
+  // orchestrated reveal + animate bars
+  ["terrain-panel","deploy-panel"].forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.remove("reveal"); void el.offsetWidth; el.classList.add("reveal");
+  });
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.querySelectorAll("#readiness .fill").forEach(f=>{ f.style.width=f.dataset.w; });
+  }));
+}
+
+function stat(k,v){ return `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`; }
+
+buildFields();
+select("imbalanced"); // open on the battlefield where SOFIDR actually helps
+</script>
+</body>
+</html>
