@@ -8,6 +8,7 @@ Included:
 
 - Archetype selection
 - CSV classification analysis through `POST /api/optimize`
+- Model-ready CSV enhancement through the deterministic best-by-SEI formation
 - Formation and terrain reporting
 - Static demos at `/demo.html` and `/client-demo.html`
 - Live upload demo at `/dynamic-demo.html`
@@ -15,7 +16,7 @@ Included:
 
 Not included:
 
-- Data-cleaning UI
+- Manual data-cleaning and profiling UI
 - `/api/profile`
 - `/api/clean`
 - `/api/download`
@@ -51,14 +52,18 @@ The Vite development server proxies `/api` to `localhost:8000`. Production reque
 - `GET /api/archetypes`
 - `GET /api/formations`
 - `POST /api/optimize`
+- `POST /api/enhance`
 
 `/api/optimize` accepts either an `archetype` query parameter or a multipart CSV field named `file`. For CSV uploads, the final column is used as the target unless `target_column` is supplied.
+
+`/api/enhance` accepts the original multipart CSV plus the deterministic `best_by_sei` formation returned by `/api/optimize`. It applies that formation to the full numeric feature matrix and returns a downloadable model-ready CSV with the target and row-origin metadata.
 
 ## Deployment constraints
 
 The target is Vercel Hobby at `sofidr.jayasaagarc.com`.
 
 - Uploads are limited to 4 MB because Vercel caps function request and response bodies at approximately 4.5 MB.
+- Enhanced CSV responses are checked against the same serverless response limit.
 - The frontend rejects oversized files before upload.
 - Optimization uses at most 300 stratified rows, 20 random-forest estimators, three-fold validation, and no refinement iteration by default to stay within the Hobby timeout.
 - Scientific Python dependencies make cold starts slower than warm requests.

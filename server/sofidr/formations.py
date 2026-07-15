@@ -32,10 +32,12 @@ Formation provenance:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import partial
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
@@ -53,29 +55,37 @@ from imblearn import FunctionSampler
 # --------------------------------------------------------------------------- #
 # Row-dropping samplers (train-fold only via imblearn semantics)
 # --------------------------------------------------------------------------- #
-def _safe_mask(X, y, mask, min_frac=0.5):
+def _safe_keep_mask(y, mask, min_frac=0.5):
     """Apply a keep-mask, but refuse to drop too much or eliminate a class."""
     if mask.sum() < max(10, int(min_frac * len(y))):
-        return X, y
+        return np.ones(len(y), dtype=bool)
     kept_classes = np.unique(y[mask])
     if len(kept_classes) < len(np.unique(y)):
-        return X, y  # never let outlier removal delete an entire class
-    return X[mask], y[mask]
+        return np.ones(len(y), dtype=bool)
+    return mask
+
+
+def _outlier_keep_mask(X, y, method):
+    if method == "iqr":
+        q1, q3 = np.percentile(X, 25, axis=0), np.percentile(X, 75, axis=0)
+        iqr = q3 - q1
+        mask = ~((X < (q1 - 1.5 * iqr)) | (X > (q3 + 1.5 * iqr))).any(axis=1)
+    else:
+        std = X.std(axis=0)
+        std[std == 0] = 1.0
+        z = np.abs((X - X.mean(axis=0)) / std)
+        mask = (z < 3).all(axis=1)
+    return _safe_keep_mask(y, mask)
 
 
 def iqr_filter(X, y):
-    q1, q3 = np.percentile(X, 25, axis=0), np.percentile(X, 75, axis=0)
-    iqr = q3 - q1
-    mask = ~((X < (q1 - 1.5 * iqr)) | (X > (q3 + 1.5 * iqr))).any(axis=1)
-    return _safe_mask(X, y, mask)
+    mask = _outlier_keep_mask(X, y, "iqr")
+    return X[mask], y[mask]
 
 
 def zscore_filter(X, y):
-    std = X.std(axis=0)
-    std[std == 0] = 1.0
-    z = np.abs((X - X.mean(axis=0)) / std)
-    mask = (z < 3).all(axis=1)
-    return _safe_mask(X, y, mask)
+    mask = _outlier_keep_mask(X, y, "zscore")
+    return X[mask], y[mask]
 
 
 _OUTLIER_FUNCS = {"iqr": iqr_filter, "zscore": zscore_filter}
@@ -93,6 +103,22 @@ _SCALERS = {
     "minmax": MinMaxScaler,
     "robust": RobustScaler,
 }
+
+
+def _mutual_info(X, y):
+    return mutual_info_classif(X, y, random_state=42)
+
+
+@dataclass
+class EnhancementResult:
+    dataframe: pd.DataFrame
+    input_rows: int
+    input_columns: int
+    output_rows: int
+    output_columns: int
+    synthetic_rows: int
+    removed_rows: int
+    steps: list[str]
 
 
 @dataclass(frozen=True)
@@ -120,8 +146,7 @@ class Formation:
             d = min(5, d)
         return d
 
-    # ----- build a fresh, unfitted leak-free pipeline ----------------------- #
-    def build_pipeline(self, n_features: int, minority_count: int):
+    def build_steps(self, n_features: int, minority_count: int):
         steps = [("impute", _IMPUTERS[self.impute]())]
 
         if self.variance_filter:
@@ -142,7 +167,7 @@ class Formation:
 
         if self.feature_select and n_features > 10:
             steps.append(
-                ("select", SelectKBest(mutual_info_classif, k=min(10, n_features)))
+                ("select", SelectKBest(_mutual_info, k=min(10, n_features)))
             )
 
         if self.decompose and self.output_dim(n_features) > 0:
@@ -151,7 +176,11 @@ class Formation:
                 n_comp = min(5, 10)
             steps.append(("pca", PCA(n_components=n_comp, random_state=42)))
 
-        return ImbPipeline(steps)
+        return steps
+
+    # ----- build a fresh, unfitted leak-free pipeline ----------------------- #
+    def build_pipeline(self, n_features: int, minority_count: int):
+        return ImbPipeline(self.build_steps(n_features, minority_count))
 
 
 # --------------------------------------------------------------------------- #
