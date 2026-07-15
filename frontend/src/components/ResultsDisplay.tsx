@@ -1,5 +1,5 @@
-import React from "react"
-import { OptimizeResponse, Formation, EnhanceResponse } from "../api"
+import React, { useState } from "react"
+import { api, OptimizeResponse, Formation, EnhanceResponse, ReportFormat } from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
 
@@ -24,29 +24,25 @@ export default function ResultsDisplay({
 }: ResultsDisplayProps) {
   const bestFormation = formations[result.best_by_sei] || {}
   const bestScore = result.scoreboard.find((item) => item.name === result.best_by_sei)
+  const [reportLoading, setReportLoading] = useState<ReportFormat | null>(null)
+  const [reportError, setReportError] = useState("")
 
-  const downloadResults = () => {
-    const data = {
-      dataset: result.dataset_name,
-      bestFormation: result.best_by_sei,
-      selected: result.selected,
-      selectionReason: result.selection_reason,
-      terrain: {
-        tags: result.terrain_tags,
-        coldStartDefault: result.cold_start_default,
-      },
-      scoreboard: result.scoreboard,
-      timestamp: new Date().toISOString(),
+  const downloadReport = async (reportFormat: ReportFormat) => {
+    setReportLoading(reportFormat)
+    setReportError("")
+    try {
+      const report = await api.exportReport(result, reportFormat)
+      const url = URL.createObjectURL(report.blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = report.filename
+      a.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : "Report export failed")
+    } finally {
+      setReportLoading(null)
     }
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `sofidr-results-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   const downloadEnhancedCsv = () => {
@@ -314,15 +310,40 @@ export default function ResultsDisplay({
         <pre>{result.report}</pre>
       </Card>
 
+      <Card className="report-export-card">
+        <div className="report-export-heading">
+          <div>
+            <p className="eyebrow">Portable reports</p>
+            <h3>Download the analysis in your preferred format.</h3>
+          </div>
+          <span>JSON · HTML · PDF · Excel</span>
+        </div>
+        <div className="report-format-actions" aria-label="Report download formats">
+          {([
+            ["json", "JSON"],
+            ["html", "HTML"],
+            ["pdf", "PDF"],
+            ["xlsx", "Excel"],
+          ] as const).map(([format, label]) => (
+            <Button
+              key={format}
+              variant={format === "pdf" ? "primary" : "secondary"}
+              onClick={() => downloadReport(format)}
+              disabled={reportLoading !== null}
+            >
+              {reportLoading === format ? `Preparing ${label}…` : `Download ${label}`}
+            </Button>
+          ))}
+        </div>
+        {reportError && <p className="report-export-error" role="alert">{reportError}</p>}
+      </Card>
+
       <div className="actions">
         {enhancement && (
           <Button onClick={downloadEnhancedCsv} className="download-btn">
             Download enhanced CSV
           </Button>
         )}
-        <Button onClick={downloadResults} variant="secondary">
-          Export decision record (JSON)
-        </Button>
         <Button onClick={onReset} variant="secondary">
           Optimize Another Dataset
         </Button>

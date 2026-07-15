@@ -1,6 +1,8 @@
 import io
+import json
 
 import pandas as pd
+from openpyxl import load_workbook
 from fastapi.testclient import TestClient
 
 from main import app
@@ -168,3 +170,74 @@ def test_enhance_requires_enough_rows_per_class_for_smote():
 
     assert response.status_code == 400
     assert "at least 2 rows" in response.json()["detail"]
+
+
+def _report_payload():
+    return {
+        "success": True,
+        "dataset_name": "customer <risk>.csv",
+        "terrain_tags": ["balanced", "moderate_dimensionality"],
+        "cold_start_default": "reconnaissance",
+        "best_by_sei": "phalanx",
+        "selected": "phalanx",
+        "selection_reason": "Highest deterministic SEI score.",
+        "scoreboard": [
+            {
+                "name": "phalanx",
+                "sei": 0.91,
+                "accuracy": 0.92,
+                "stability": 0.89,
+                "retention": 0.95,
+                "simplicity": 0.8,
+                "error": "",
+            },
+            {
+                "name": "reconnaissance",
+                "sei": 0.86,
+                "accuracy": 0.88,
+                "stability": 0.84,
+                "retention": 1.0,
+                "simplicity": 1.0,
+                "error": "",
+            },
+        ],
+        "report": "SOFIDR decision record\nBest formation: phalanx",
+        "error": "",
+    }
+
+
+def test_report_exports_json_html_pdf_and_excel():
+    responses = {
+        report_format: client.post(
+            f"/api/report?format={report_format}",
+            json=_report_payload(),
+        )
+        for report_format in ("json", "html", "pdf", "xlsx")
+    }
+
+    for report_format, response in responses.items():
+        assert response.status_code == 200, (report_format, response.text)
+        assert response.headers["content-disposition"].endswith(
+            f'-sofidr-report.{report_format}"'
+        )
+        assert response.headers["x-sofidr-report-format"] == report_format
+
+    assert json.loads(responses["json"].content)["best_by_sei"] == "phalanx"
+    assert b"customer &lt;risk&gt;.csv" in responses["html"].content
+    assert responses["pdf"].content.startswith(b"%PDF")
+
+    workbook = load_workbook(io.BytesIO(responses["xlsx"].content), read_only=True)
+    assert workbook.sheetnames == ["Summary", "Scoreboard", "Decision Record"]
+    assert workbook["Summary"]["B3"].value == "Phalanx"
+
+
+def test_report_rejects_failed_analysis_and_unknown_format():
+    failed = _report_payload()
+    failed["success"] = False
+    failed["error"] = "analysis failed"
+
+    failed_response = client.post("/api/report?format=pdf", json=failed)
+    unsupported_response = client.post("/api/report?format=docx", json=_report_payload())
+
+    assert failed_response.status_code == 400
+    assert unsupported_response.status_code == 422

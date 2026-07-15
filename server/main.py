@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -34,6 +34,7 @@ from sklearn.preprocessing import LabelEncoder
 try:
     from sofidr import SOFIDRFramework, KnowledgeBase
     from sofidr.datasets import ARCHETYPES
+    from sofidr.exports import REPORT_FORMATS, build_report
     from sofidr.formations import FORMATIONS, enhance_dataset
     from sofidr.report import render
 except ImportError:
@@ -67,6 +68,7 @@ app.add_middleware(
         "X-SOFIDR-Synthetic-Rows",
         "X-SOFIDR-Removed-Rows",
         "X-SOFIDR-Steps",
+        "X-SOFIDR-Report-Format",
     ],
 )
 
@@ -386,6 +388,44 @@ async def enhance(
         iter([payload]),
         media_type="text/csv",
         headers=headers,
+    )
+
+
+@app.post("/api/report")
+async def export_report(
+    result: OptimizeResponse,
+    report_format: str = Query(..., alias="format", pattern="^(json|html|pdf|xlsx)$"),
+):
+    """Render a completed analysis as a portable report attachment."""
+    if not result.success:
+        raise HTTPException(400, "Only successful analyses can be exported")
+    if report_format not in REPORT_FORMATS:
+        raise HTTPException(400, f"Unsupported report format: {report_format}")
+
+    try:
+        payload, media_type, extension = build_report(
+            result.model_dump(mode="json"),
+            report_format,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(400, f"Invalid report data: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Report generation failed")
+        raise HTTPException(500, "SOFIDR could not generate this report") from exc
+
+    if len(payload) > MAX_ENHANCE_OUTPUT_SIZE:
+        raise HTTPException(413, "Generated report exceeds the maximum response size")
+
+    stem = os.path.splitext(os.path.basename(result.dataset_name))[0] or "analysis"
+    safe_stem = "".join(char if char.isalnum() or char in "-_" else "_" for char in stem)
+    filename = f"{safe_stem}-sofidr-report.{extension}"
+    return Response(
+        content=payload,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-SOFIDR-Report-Format": report_format,
+        },
     )
 
 

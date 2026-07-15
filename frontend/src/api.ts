@@ -65,6 +65,13 @@ export interface EnhanceResponse {
   preview: CsvPreview
 }
 
+export type ReportFormat = "json" | "html" | "pdf" | "xlsx"
+
+export interface ReportResponse {
+  blob: Blob
+  filename: string
+}
+
 const API_BASE = "/api"
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -260,5 +267,29 @@ export const api = {
     }
 
     return { blob, metadata, preview: parseCsvPreview(previewText) }
+  },
+
+  async exportReport(
+    result: OptimizeResponse,
+    reportFormat: ReportFormat
+  ): Promise<ReportResponse> {
+    const query = new URLSearchParams({ format: reportFormat })
+    const res = await fetch(`${API_BASE}/report?${query}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(result),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      const detail =
+        data && typeof data === "object" && "detail" in data
+          ? String(data.detail)
+          : `${res.status} ${res.statusText}`
+      throw new Error(detail)
+    }
+    return {
+      blob: await res.blob(),
+      filename: responseFilename(res.headers),
+    }
   },
 }

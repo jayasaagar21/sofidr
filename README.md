@@ -53,10 +53,13 @@ The Vite development server proxies `/api` to `localhost:8000`. Production reque
 - `GET /api/formations`
 - `POST /api/optimize`
 - `POST /api/enhance`
+- `POST /api/report?format=json|html|pdf|xlsx`
 
 `/api/optimize` accepts either an `archetype` query parameter or a multipart CSV field named `file`. For CSV uploads, the final column is used as the target unless `target_column` is supplied.
 
 `/api/enhance` accepts the original multipart CSV plus the deterministic `best_by_sei` formation returned by `/api/optimize`. It applies that formation to the full numeric feature matrix and returns a downloadable model-ready CSV with the target and row-origin metadata.
+
+`/api/report` accepts a successful optimization response and renders the analysis as JSON, standalone HTML, PDF, or Excel. The web results view exposes each format as a direct download.
 
 ## Deployment constraints
 
