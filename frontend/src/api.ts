@@ -38,6 +38,33 @@ export interface Formation {
   }
 }
 
+export interface CsvPreview {
+  columns: string[]
+  rows: string[][]
+  truncated: boolean
+}
+
+export interface DatasetDimensions {
+  rows: number | null
+  columns: number | null
+}
+
+export interface EnhancementMetadata {
+  filename: string
+  before: DatasetDimensions
+  after: DatasetDimensions
+  formation: string
+  formationSteps: string[]
+  syntheticCount: number
+  contentType: string
+}
+
+export interface EnhanceResponse {
+  blob: Blob
+  metadata: EnhancementMetadata
+  preview: CsvPreview
+}
+
 const API_BASE = "/api"
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -50,6 +77,99 @@ async function readJson<T>(res: Response): Promise<T> {
     throw new Error(detail)
   }
   return data as T
+}
+
+function headerValue(headers: Headers, ...names: string[]): string | null {
+  for (const name of names) {
+    const value = headers.get(name)
+    if (value !== null) return value
+  }
+  return null
+}
+
+function headerNumber(headers: Headers, ...names: string[]): number | null {
+  const value = headerValue(headers, ...names)
+  if (value === null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function responseFilename(headers: Headers): string {
+  const explicit = headerValue(headers, "X-SOFIDR-Filename", "X-Enhanced-Filename")
+  if (explicit) return explicit
+
+  const disposition = headers.get("Content-Disposition") || ""
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1])
+    } catch {
+      return utf8[1]
+    }
+  }
+  const quoted = disposition.match(/filename="?([^";]+)"?/i)
+  return quoted?.[1] || "sofidr-enhanced.csv"
+}
+
+function parseSteps(value: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map(String)
+  } catch {
+    // Some deployments expose a pipe- or comma-delimited header instead.
+  }
+  return value.split(/\s*(?:\||;)\s*/).filter(Boolean)
+}
+
+export function parseCsvPreview(csv: string, maxRows = 6): CsvPreview {
+  const parsed: string[][] = []
+  let row: string[] = []
+  let field = ""
+  let quoted = false
+  let index = 0
+
+  while (index < csv.length && parsed.length <= maxRows) {
+    const char = csv[index]
+    if (quoted) {
+      if (char === '"' && csv[index + 1] === '"') {
+        field += '"'
+        index += 2
+        continue
+      }
+      if (char === '"') {
+        quoted = false
+      } else {
+        field += char
+      }
+    } else if (char === '"') {
+      quoted = true
+    } else if (char === ",") {
+      row.push(field)
+      field = ""
+    } else if (char === "\n" || char === "\r") {
+      row.push(field)
+      parsed.push(row)
+      row = []
+      field = ""
+      if (char === "\r" && csv[index + 1] === "\n") index += 1
+    } else {
+      field += char
+    }
+    index += 1
+  }
+
+  if ((field || row.length) && parsed.length <= maxRows) {
+    row.push(field)
+    parsed.push(row)
+  }
+
+  const columns = parsed.shift() || []
+  return {
+    columns,
+    rows: parsed.slice(0, maxRows),
+    truncated: parsed.length > maxRows || index < csv.length,
+  }
 }
 
 export const api = {
@@ -97,5 +217,50 @@ export const api = {
     })
 
     return readJson<OptimizeResponse>(res)
+  },
+
+  async enhance(file: File, bestFormation: string): Promise<EnhanceResponse> {
+    const form = new FormData()
+    form.append("file", file, file.name)
+    form.append("formation", bestFormation)
+
+    const res = await fetch(`${API_BASE}/enhance`, {
+      method: "POST",
+      body: form,
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      const detail =
+        data && typeof data === "object" && "detail" in data
+          ? String(data.detail)
+          : `${res.status} ${res.statusText}`
+      throw new Error(detail)
+    }
+
+    const blob = await res.blob()
+    const previewText = await blob.slice(0, 256 * 1024).text()
+    const stepsHeader = headerValue(
+      res.headers,
+      "X-SOFIDR-Formation-Steps",
+      "X-Formation-Steps"
+    )
+    const metadata: EnhancementMetadata = {
+      filename: responseFilename(res.headers),
+      before: {
+        rows: headerNumber(res.headers, "X-SOFIDR-Before-Rows", "X-Original-Rows"),
+        columns: headerNumber(res.headers, "X-SOFIDR-Before-Columns", "X-Original-Columns"),
+      },
+      after: {
+        rows: headerNumber(res.headers, "X-SOFIDR-After-Rows", "X-Enhanced-Rows"),
+        columns: headerNumber(res.headers, "X-SOFIDR-After-Columns", "X-Enhanced-Columns"),
+      },
+      formation: headerValue(res.headers, "X-SOFIDR-Formation", "X-Formation") || bestFormation,
+      formationSteps: parseSteps(stepsHeader),
+      syntheticCount:
+        headerNumber(res.headers, "X-SOFIDR-Synthetic-Count", "X-Synthetic-Count") || 0,
+      contentType: res.headers.get("Content-Type") || "text/csv",
+    }
+
+    return { blob, metadata, preview: parseCsvPreview(previewText) }
   },
 }

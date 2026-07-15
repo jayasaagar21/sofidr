@@ -33,7 +33,6 @@ Formation provenance:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import partial
 from typing import Optional
 
 import numpy as np
@@ -181,6 +180,78 @@ class Formation:
     # ----- build a fresh, unfitted leak-free pipeline ----------------------- #
     def build_pipeline(self, n_features: int, minority_count: int):
         return ImbPipeline(self.build_steps(n_features, minority_count))
+
+
+def enhance_dataset(
+    formation_name: str,
+    X,
+    y,
+    feature_names,
+    target_name: str,
+) -> EnhancementResult:
+    """Fit and apply a formation's preprocessing steps without a classifier."""
+    if formation_name not in FORMATIONS:
+        raise ValueError(f"Unknown formation: {formation_name}")
+
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y)
+    names = np.asarray(list(feature_names), dtype=object)
+    if X.ndim != 2 or X.shape[1] != len(names) or len(X) != len(y):
+        raise ValueError("X, y, and feature_names have incompatible dimensions")
+    if target_name == "_sofidr_row_origin" or "_sofidr_row_origin" in names:
+        raise ValueError("_sofidr_row_origin is reserved for export provenance")
+
+    input_rows = len(y)
+    formation = FORMATIONS[formation_name]
+    counts = pd.Series(y).value_counts()
+    minority_count = int(counts.min())
+    steps = formation.build_steps(X.shape[1], minority_count)
+    origins = np.full(input_rows, "original", dtype=object)
+    removed_rows = 0
+    synthetic_rows = 0
+
+    for step_name, step in steps:
+        if step_name == "outliers":
+            keep = _outlier_keep_mask(X, y, formation.outlier)
+            removed_rows += int((~keep).sum())
+            X, y, origins = X[keep], y[keep], origins[keep]
+        elif step_name == "smote":
+            original_count = len(y)
+            X, y = step.fit_resample(X, y)
+            synthetic_rows = len(y) - original_count
+            # imbalanced-learn's SMOTE returns input rows first, followed by
+            # generated rows; tests lock this provenance assumption in place.
+            origins = np.concatenate(
+                [origins, np.full(synthetic_rows, "synthetic", dtype=object)]
+            )
+        else:
+            X = step.fit_transform(X, y)
+            if step_name == "pca":
+                names = np.asarray(
+                    [f"pc_{index}" for index in range(1, X.shape[1] + 1)],
+                    dtype=object,
+                )
+            elif hasattr(step, "get_feature_names_out"):
+                names = np.asarray(step.get_feature_names_out(names), dtype=object)
+            elif X.shape[1] != len(names):
+                names = np.asarray(
+                    [f"feature_{index}" for index in range(1, X.shape[1] + 1)],
+                    dtype=object,
+                )
+
+    frame = pd.DataFrame(X, columns=names)
+    frame[target_name] = y
+    frame["_sofidr_row_origin"] = origins
+    return EnhancementResult(
+        dataframe=frame,
+        input_rows=input_rows,
+        input_columns=len(feature_names) + 1,
+        output_rows=len(frame),
+        output_columns=frame.shape[1],
+        synthetic_rows=synthetic_rows,
+        removed_rows=removed_rows,
+        steps=[name for name, _ in steps],
+    )
 
 
 # --------------------------------------------------------------------------- #

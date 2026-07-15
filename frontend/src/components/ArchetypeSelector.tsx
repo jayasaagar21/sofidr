@@ -6,12 +6,14 @@ interface ArchetypeSelectorProps {
   archetypes: Record<string, string>
   loading: boolean
   onSelect: (archetype: string) => void
+  firstButtonRef?: React.RefObject<HTMLButtonElement>
 }
 
 export default function ArchetypeSelector({
   archetypes,
   loading,
   onSelect,
+  firstButtonRef,
 }: ArchetypeSelectorProps) {
   const labels: Record<string, { title: string; meta: string }> = {
     breast_cancer: { title: "Clinical diagnosis", meta: "Balanced · 30 features" },
@@ -31,14 +33,19 @@ export default function ArchetypeSelector({
         </div>
       </div>
       <div className="archetype-grid">
-        {Object.entries(archetypes).map(([key, desc]) => (
+        {Object.entries(archetypes).map(([key, desc], index) => (
           <Card key={key} className="archetype-card">
             <div>
               <span className="archetype-meta">{labels[key]?.meta || "Benchmark dataset"}</span>
               <h4>{labels[key]?.title || key.replace(/_/g, " ")}</h4>
               <p>{desc}</p>
             </div>
-            <Button onClick={() => onSelect(key)} disabled={loading} className="w-full">
+            <Button
+              ref={index === 0 ? firstButtonRef : undefined}
+              onClick={() => onSelect(key)}
+              disabled={loading}
+              className="w-full"
+            >
               Run analysis <span aria-hidden="true">→</span>
             </Button>
           </Card>

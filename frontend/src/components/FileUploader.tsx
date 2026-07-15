@@ -56,7 +56,7 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
         <span className="step-number">02</span>
         <div>
           <h3>Analyze your data</h3>
-          <p>Use a classification CSV with at least ten rows.</p>
+          <p>Upload a classification CSV and receive a model-ready enhanced file.</p>
         </div>
       </div>
       <div
@@ -98,7 +98,10 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
         </div>
       </div>
       <p className="file-hint" id="file-requirements">
-        <span>CSV only</span><span>4 MB maximum</span><span>Final column = target</span>
+        <span>CSV only</span><span>4 MB maximum</span><span>Final column must be the target</span>
+      </p>
+      <p className="file-output-note">
+        SOFIDR applies the winning formation after analysis and returns the enhanced CSV for download.
       </p>
       {error && <p className="error-message" role="alert">{error}</p>}
     </div>

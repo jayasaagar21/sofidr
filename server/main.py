@@ -17,13 +17,14 @@ import io
 import logging
 import os
 import time
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -33,6 +34,7 @@ from sklearn.preprocessing import LabelEncoder
 try:
     from sofidr import SOFIDRFramework, KnowledgeBase
     from sofidr.datasets import ARCHETYPES
+    from sofidr.formations import FORMATIONS, enhance_dataset
     from sofidr.report import render
 except ImportError:
     print("Warning: SOFIDR package not found. Install with: pip install -r requirements.txt")
@@ -56,9 +58,20 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "Content-Disposition",
+        "X-SOFIDR-Input-Rows",
+        "X-SOFIDR-Input-Columns",
+        "X-SOFIDR-Output-Rows",
+        "X-SOFIDR-Output-Columns",
+        "X-SOFIDR-Synthetic-Rows",
+        "X-SOFIDR-Removed-Rows",
+        "X-SOFIDR-Steps",
+    ],
 )
 
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_MB", 4)) * 1024 * 1024
+MAX_ENHANCE_OUTPUT_SIZE = int(os.getenv("MAX_ENHANCE_OUTPUT_MB", 4)) * 1024 * 1024
 MAX_OPTIMIZATION_ROWS = int(os.getenv("MAX_OPTIMIZATION_ROWS", 300))
 KB_PATH = "/tmp/sofidr_kb.json"  # in-memory across Vercel invocations within a session
 
@@ -83,6 +96,75 @@ async def request_context(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["X-Response-Time-Ms"] = f"{(time.perf_counter() - started) * 1000:.1f}"
     return response
+
+
+@dataclass
+class UploadedDataset:
+    X: np.ndarray
+    y: np.ndarray
+    feature_names: list[str]
+    target_name: str
+    filename: str
+
+
+async def _load_csv_upload(
+    file: UploadFile,
+    target_column: Optional[str],
+    min_class_rows: int,
+) -> UploadedDataset:
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+    try:
+        df = pd.read_csv(io.BytesIO(content))
+    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError) as exc:
+        raise HTTPException(400, f"Invalid CSV: {exc}") from exc
+    if df.empty or len(df.columns) < 2:
+        raise HTTPException(400, "CSV must contain data, at least one feature, and a target column")
+
+    target_name = target_column or str(df.columns[-1])
+    if target_name not in df.columns:
+        raise HTTPException(400, f"Target column not found: {target_name}")
+    if df[target_name].isna().any():
+        raise HTTPException(400, "Target column cannot contain missing values")
+
+    y = df[target_name].to_numpy()
+    if not (
+        pd.api.types.is_object_dtype(y)
+        or str(y.dtype).startswith("category")
+        or pd.api.types.is_integer_dtype(y)
+        or pd.api.types.is_bool_dtype(y)
+    ):
+        values = pd.Series(y).dropna().unique()
+        if not all(float(value).is_integer() for value in values):
+            raise HTTPException(400, "Target must contain discrete classes, not continuous values")
+
+    numeric = df.drop(columns=[target_name]).select_dtypes(include="number")
+    if numeric.shape[1] < 1:
+        raise HTTPException(400, "CSV must contain at least one numeric feature column")
+    X = numeric.to_numpy(dtype=float)
+    if np.isinf(X).any():
+        raise HTTPException(400, "Feature columns cannot contain infinite values")
+    if len(X) < 10:
+        raise HTTPException(400, "Dataset too small or invalid")
+
+    class_counts = pd.Series(y).value_counts()
+    if len(class_counts) < 2:
+        raise HTTPException(400, "Target must contain at least two classes")
+    if class_counts.min() < min_class_rows:
+        raise HTTPException(
+            400, f"Each target class must contain at least {min_class_rows} rows"
+        )
+
+    return UploadedDataset(
+        X=X,
+        y=y,
+        feature_names=[str(name) for name in numeric.columns],
+        target_name=target_name,
+        filename=file.filename or "upload.csv",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -170,40 +252,9 @@ async def optimize(
             X, y = ARCHETYPES[archetype]()
             dataset_name = archetype
         elif file:
-            if file.size and file.size > MAX_FILE_SIZE:
-                raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-            content = await file.read()
-            if len(content) > MAX_FILE_SIZE:
-                raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-            try:
-                df = pd.read_csv(io.BytesIO(content))
-            except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError) as exc:
-                raise HTTPException(400, f"Invalid CSV: {exc}") from exc
-            if df.empty or len(df.columns) < 2:
-                raise HTTPException(400, "CSV must contain data, at least one feature, and a target column")
-            if target_column is None:
-                target_column = df.columns[-1]
-            if target_column not in df.columns:
-                raise HTTPException(400, f"Target column not found: {target_column}")
-            if df[target_column].isna().any():
-                raise HTTPException(400, "Target column cannot contain missing values")
-            y = df[target_column].to_numpy()
-            if not (
-                pd.api.types.is_object_dtype(y)
-                or str(y.dtype).startswith("category")
-                or pd.api.types.is_integer_dtype(y)
-                or pd.api.types.is_bool_dtype(y)
-            ):
-                values = pd.Series(y).dropna().unique()
-                if not all(float(value).is_integer() for value in values):
-                    raise HTTPException(400, "Target must contain discrete classes, not continuous values")
-            numeric = df.drop(columns=[target_column]).select_dtypes(include="number")
-            if numeric.shape[1] < 1:
-                raise HTTPException(400, "CSV must contain at least one numeric feature column")
-            X = numeric.to_numpy(dtype=float)
-            if np.isinf(X).any():
-                raise HTTPException(400, "Feature columns cannot contain infinite values")
-            dataset_name = file.filename or "upload"
+            upload = await _load_csv_upload(file, target_column, min_class_rows=3)
+            X, y = upload.X, upload.y
+            dataset_name = upload.filename
         else:
             raise HTTPException(400, "Provide either ?archetype or upload a file")
 
