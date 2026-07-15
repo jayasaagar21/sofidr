@@ -119,7 +119,7 @@ function parseSteps(value: string | null): string[] {
   } catch {
     // Some deployments expose a pipe- or comma-delimited header instead.
   }
-  return value.split(/\s*(?:\||;)\s*/).filter(Boolean)
+  return value.split(/\s*(?:\||;|,)\s*/).filter(Boolean)
 }
 
 export function parseCsvPreview(csv: string, maxRows = 6): CsvPreview {
@@ -222,9 +222,9 @@ export const api = {
   async enhance(file: File, bestFormation: string): Promise<EnhanceResponse> {
     const form = new FormData()
     form.append("file", file, file.name)
-    form.append("formation", bestFormation)
+    const query = new URLSearchParams({ formation: bestFormation })
 
-    const res = await fetch(`${API_BASE}/enhance`, {
+    const res = await fetch(`${API_BASE}/enhance?${query}`, {
       method: "POST",
       body: form,
     })
@@ -241,23 +241,22 @@ export const api = {
     const previewText = await blob.slice(0, 256 * 1024).text()
     const stepsHeader = headerValue(
       res.headers,
-      "X-SOFIDR-Formation-Steps",
-      "X-Formation-Steps"
+      "X-SOFIDR-Steps"
     )
     const metadata: EnhancementMetadata = {
       filename: responseFilename(res.headers),
       before: {
-        rows: headerNumber(res.headers, "X-SOFIDR-Before-Rows", "X-Original-Rows"),
-        columns: headerNumber(res.headers, "X-SOFIDR-Before-Columns", "X-Original-Columns"),
+        rows: headerNumber(res.headers, "X-SOFIDR-Input-Rows"),
+        columns: headerNumber(res.headers, "X-SOFIDR-Input-Columns"),
       },
       after: {
-        rows: headerNumber(res.headers, "X-SOFIDR-After-Rows", "X-Enhanced-Rows"),
-        columns: headerNumber(res.headers, "X-SOFIDR-After-Columns", "X-Enhanced-Columns"),
+        rows: headerNumber(res.headers, "X-SOFIDR-Output-Rows"),
+        columns: headerNumber(res.headers, "X-SOFIDR-Output-Columns"),
       },
-      formation: headerValue(res.headers, "X-SOFIDR-Formation", "X-Formation") || bestFormation,
+      formation: bestFormation,
       formationSteps: parseSteps(stepsHeader),
       syntheticCount:
-        headerNumber(res.headers, "X-SOFIDR-Synthetic-Count", "X-Synthetic-Count") || 0,
+        headerNumber(res.headers, "X-SOFIDR-Synthetic-Rows") || 0,
       contentType: res.headers.get("Content-Type") || "text/csv",
     }
 
