@@ -45,7 +45,13 @@ def _standardize_semantics(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         key = re.sub(r"[^a-z0-9]+", "_", str(column).lower()).strip("_")
         series = out[column]
 
-        if "email" in key:
+        if any(token in key for token in ("date", "time", "timestamp")):
+            parsed = pd.to_datetime(series, errors="coerce", format="mixed", dayfirst=True)
+            non_missing = series.notna()
+            if non_missing.any() and parsed[non_missing].notna().mean() >= 0.8:
+                out[column] = parsed
+                steps.append(f"standardized_{key}")
+        elif "email" in key:
             values = series.astype("string").str.strip().str.lower()
             valid = values.str.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", na=False)
             invalid = series.notna() & ~valid
@@ -74,8 +80,8 @@ def _standardize_semantics(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
         if key == "age" or key.endswith("_age"):
             numeric = pd.to_numeric(out[column], errors="coerce")
             invalid = numeric.notna() & ~numeric.between(0, 120)
-            if invalid.any():
-                out.loc[invalid, column] = np.nan
+            out[column] = numeric.mask(invalid)
+            if invalid.any() or numeric.isna().sum() > series.isna().sum():
                 steps.append(f"bounded_{key}_0_120")
 
         if any(token in key for token in ("price", "amount_paid", "cost")):

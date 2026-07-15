@@ -9,6 +9,7 @@ Included:
 - Archetype selection
 - CSV classification analysis through `POST /api/optimize`
 - Model-ready CSV enhancement through the deterministic best-by-SEI formation
+- Automatic cleaning-only fallback for malformed mixed business CSVs without a target
 - Formation and terrain reporting
 - Static demos at `/demo.html` and `/client-demo.html`
 - Live upload demo at `/dynamic-demo.html`
@@ -52,10 +53,13 @@ The Vite development server proxies `/api` to `localhost:8000`. Production reque
 - `GET /api/archetypes`
 - `GET /api/formations`
 - `POST /api/optimize`
+- `POST /api/clean`
 - `POST /api/enhance`
 - `POST /api/report?format=json|html|pdf|xlsx`
 
 `/api/optimize` accepts either an `archetype` query parameter or a multipart CSV field named `file`. For CSV uploads, the final column is used as the target unless `target_column` is supplied.
+
+`/api/clean` repairs conservative structural and semantic quality issues without requiring a target: malformed split date fields, trailing empty columns, whitespace, missing sentinels, exact duplicates, common currency values, dates, names, emails, categories, country aliases, and implausible ages. It returns a human-readable cleaned CSV and quality metadata headers.
 
 `/api/enhance` accepts the original multipart CSV plus the deterministic `best_by_sei` formation returned by `/api/optimize`. It applies that formation to the full numeric feature matrix and returns a downloadable model-ready CSV with the target and row-origin metadata.
 

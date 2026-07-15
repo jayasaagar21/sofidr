@@ -228,8 +228,8 @@ export default function App() {
                 <h2>Bring a dataset or explore a terrain.</h2>
               </div>
               <p>
-                Your upload is processed for this request only. SOFIDR evaluates
-                numeric features and treats the final column as the target.
+                Your upload is processed for this request only. SOFIDR optimizes
+                classification data and falls back to safe cleaning for mixed datasets.
               </p>
             </div>
             <div className="input-container">

@@ -1905,3 +1905,23 @@ a:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.cleaning-header {
+  border-color: rgba(70, 255, 155, .32);
+}
+
+.cleaning-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .cleaning-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .cleaning-metrics {
+    grid-template-columns: 1fr;
+  }
+}

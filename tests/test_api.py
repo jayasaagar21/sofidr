@@ -241,3 +241,36 @@ def test_report_rejects_failed_analysis_and_unknown_format():
 
     assert failed_response.status_code == 400
     assert unsupported_response.status_code == 422
+
+
+def test_clean_accepts_malformed_mixed_business_dataset():
+    payload = (
+        "Transaction_ID,Customer_Name,Email,Age,Purchase_Date,Product_Category,Price_Paid,Country,\n"
+        "TXN001, john doe,JOHN@EXAMPLE.COM,29,12-03-2026,electronics,1200,USA,\n"
+        "TXN002,mike brown,mike@brown,twenty,Mar-19,2026,Home,$45.50,U.K.\n"
+        "TXN002,mike brown,mike@brown,twenty,Mar-19,2026,Home,$45.50,U.K.\n"
+        "TXN003,,valid@example.com,150,20-03-2026,,N/A,United States,\n"
+    ).encode()
+    response = client.post(
+        "/api/clean",
+        files={"file": ("messy transactions.csv", io.BytesIO(payload), "text/csv")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="messy_transactions-sofidr-cleaned.csv"'
+    )
+    assert response.headers["x-sofidr-duplicates-removed"] == "1"
+    assert response.headers["x-sofidr-completeness-after"] == "100.0"
+    assert "repaired_2_malformed_rows" in response.headers["x-sofidr-cleaning-steps"]
+
+    cleaned = pd.read_csv(io.BytesIO(response.content))
+    assert len(cleaned) == 3
+    assert cleaned.isna().sum().sum() == 0
+    assert cleaned.loc[0, "Customer_Name"] == "John Doe"
+    assert cleaned.loc[0, "Email"] == "john@example.com"
+    assert cleaned.loc[0, "Country"] == "United States"
+    assert cleaned.loc[1, "Purchase_Date"] == "2026-03-19"
+    assert cleaned.loc[1, "Price_Paid"] == 45.5
+    assert cleaned.loc[1, "Country"] == "United Kingdom"
+    assert cleaned["Age"].between(0, 120).all()

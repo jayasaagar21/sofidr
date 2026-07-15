@@ -120,7 +120,7 @@ def _read_csv_content(content: bytes) -> tuple[pd.DataFrame, list[str]]:
     """Read valid CSVs normally and conservatively repair split date fields."""
     try:
         text = content.decode("utf-8-sig")
-        rows = list(csv.reader(io.StringIO(text)))
+        rows = list(csv.reader(io.StringIO(text), strict=True))
     except (UnicodeDecodeError, csv.Error) as exc:
         raise HTTPException(400, f"Invalid CSV: {exc}") from exc
     if len(rows) < 2:
@@ -175,6 +175,14 @@ def _read_csv_content(content: bytes) -> tuple[pd.DataFrame, list[str]]:
         normalized.append(row)
 
     frame = pd.DataFrame(normalized, columns=header)
+    frame = frame.replace(r"^\s*$", np.nan, regex=True)
+    for column in frame.columns:
+        non_missing = frame[column].notna()
+        if not non_missing.any():
+            continue
+        numeric = pd.to_numeric(frame[column], errors="coerce")
+        if numeric[non_missing].notna().all():
+            frame[column] = numeric
     return frame, ([f"repaired_{repaired_rows}_malformed_rows"] if repaired_rows else [])
 
 
