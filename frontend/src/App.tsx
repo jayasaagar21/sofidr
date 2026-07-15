@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react"
-import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse } from "./api"
+import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse } from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
 import ResultsDisplay from "./components/ResultsDisplay"
 import GuidedProcessDemo from "./components/GuidedProcessDemo"
 import AnalysisProgress from "./components/AnalysisProgress"
+import CleaningResultsDisplay from "./components/CleaningResultsDisplay"
 import "./App.css"
 
 interface AppState {
@@ -17,6 +18,7 @@ interface AppState {
   enhancement: EnhanceResponse | null
   enhancementLoading: boolean
   enhancementError: string
+  cleaning: CleanResponse | null
 }
 
 export default function App() {
@@ -30,6 +32,7 @@ export default function App() {
     enhancement: null,
     enhancementLoading: false,
     enhancementError: "",
+    cleaning: null,
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
@@ -64,6 +67,7 @@ export default function App() {
       enhancement: null,
       enhancementLoading: false,
       enhancementError: "",
+      cleaning: null,
     }))
     try {
       const result = await api.optimize({ archetype })
@@ -83,6 +87,7 @@ export default function App() {
       enhancement: null,
       enhancementLoading: false,
       enhancementError: "",
+      cleaning: null,
     }))
     try {
       const result = await api.optimize({ file })
@@ -105,9 +110,27 @@ export default function App() {
           enhancementLoading: false,
         }))
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error"
-      setState((s) => ({ ...s, error: msg, loading: false }))
+    } catch (optimizationError) {
+      try {
+        const cleaning = await api.clean(file)
+        setState((s) => ({
+          ...s,
+          result: null,
+          cleaning,
+          loading: false,
+          error: "",
+        }))
+      } catch (cleaningError) {
+        const optimizeMessage =
+          optimizationError instanceof Error ? optimizationError.message : "analysis failed"
+        const cleanMessage =
+          cleaningError instanceof Error ? cleaningError.message : "cleaning failed"
+        setState((s) => ({
+          ...s,
+          error: `SOFIDR could not analyze or clean this file. ${optimizeMessage}; ${cleanMessage}`,
+          loading: false,
+        }))
+      }
     }
   }
 
@@ -140,6 +163,7 @@ export default function App() {
       enhancement: null,
       enhancementLoading: false,
       enhancementError: "",
+      cleaning: null,
     }))
   }
 
@@ -180,7 +204,13 @@ export default function App() {
       <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusBenchmarkPicker} />
 
       <main className="app-main" id="analysis">
-        {state.result ? (
+        {state.cleaning ? (
+          <CleaningResultsDisplay
+            result={state.cleaning}
+            sourceName={state.sourceFile?.name || "Uploaded dataset"}
+            onReset={resetAnalysis}
+          />
+        ) : state.result ? (
           <ResultsDisplay
             result={state.result}
             formations={state.formations}

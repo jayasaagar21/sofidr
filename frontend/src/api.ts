@@ -72,6 +72,23 @@ export interface ReportResponse {
   filename: string
 }
 
+export interface CleaningMetadata {
+  filename: string
+  before: DatasetDimensions
+  after: DatasetDimensions
+  duplicatesRemoved: number
+  missingFilled: number
+  completenessBefore: number | null
+  completenessAfter: number | null
+  steps: string[]
+}
+
+export interface CleanResponse {
+  blob: Blob
+  metadata: CleaningMetadata
+  preview: CsvPreview
+}
+
 const API_BASE = "/api"
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -267,6 +284,49 @@ export const api = {
     }
 
     return { blob, metadata, preview: parseCsvPreview(previewText) }
+  },
+
+  async clean(file: File): Promise<CleanResponse> {
+    const form = new FormData()
+    form.append("file", file, file.name)
+    const res = await fetch(`${API_BASE}/clean`, { method: "POST", body: form })
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      const detail =
+        data && typeof data === "object" && "detail" in data
+          ? String(data.detail)
+          : `${res.status} ${res.statusText}`
+      throw new Error(detail)
+    }
+    const blob = await res.blob()
+    const previewText = await blob.slice(0, 256 * 1024).text()
+    return {
+      blob,
+      preview: parseCsvPreview(previewText),
+      metadata: {
+        filename: responseFilename(res.headers),
+        before: {
+          rows: headerNumber(res.headers, "X-SOFIDR-Input-Rows"),
+          columns: headerNumber(res.headers, "X-SOFIDR-Input-Columns"),
+        },
+        after: {
+          rows: headerNumber(res.headers, "X-SOFIDR-Output-Rows"),
+          columns: headerNumber(res.headers, "X-SOFIDR-Output-Columns"),
+        },
+        duplicatesRemoved:
+          headerNumber(res.headers, "X-SOFIDR-Duplicates-Removed") || 0,
+        missingFilled: headerNumber(res.headers, "X-SOFIDR-Missing-Filled") || 0,
+        completenessBefore: headerNumber(
+          res.headers,
+          "X-SOFIDR-Completeness-Before"
+        ),
+        completenessAfter: headerNumber(
+          res.headers,
+          "X-SOFIDR-Completeness-After"
+        ),
+        steps: parseSteps(res.headers.get("X-SOFIDR-Cleaning-Steps")),
+      },
+    }
   },
 
   async exportReport(

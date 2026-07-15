@@ -13,6 +13,7 @@ Environment variables (set in Vercel config, or a .env for local dev):
 
 from __future__ import annotations
 
+import csv
 import io
 import logging
 import os
@@ -37,6 +38,7 @@ try:
     from sofidr.exports import REPORT_FORMATS, build_report
     from sofidr.formations import FORMATIONS, enhance_dataset
     from sofidr.report import render
+    from dq import clean_for_human
 except ImportError:
     print("Warning: SOFIDR package not found. Install with: pip install -r requirements.txt")
     raise
@@ -69,6 +71,11 @@ app.add_middleware(
         "X-SOFIDR-Removed-Rows",
         "X-SOFIDR-Steps",
         "X-SOFIDR-Report-Format",
+        "X-SOFIDR-Duplicates-Removed",
+        "X-SOFIDR-Missing-Filled",
+        "X-SOFIDR-Completeness-Before",
+        "X-SOFIDR-Completeness-After",
+        "X-SOFIDR-Cleaning-Steps",
     ],
 )
 
@@ -109,6 +116,68 @@ class UploadedDataset:
     filename: str
 
 
+def _read_csv_content(content: bytes) -> tuple[pd.DataFrame, list[str]]:
+    """Read valid CSVs normally and conservatively repair split date fields."""
+    try:
+        text = content.decode("utf-8-sig")
+        rows = list(csv.reader(io.StringIO(text)))
+    except (UnicodeDecodeError, csv.Error) as exc:
+        raise HTTPException(400, f"Invalid CSV: {exc}") from exc
+    if len(rows) < 2:
+        raise HTTPException(400, "CSV must contain a header and data rows")
+
+    raw_header = [value.strip() for value in rows[0]]
+    while raw_header and not raw_header[-1]:
+        raw_header.pop()
+    width = len(raw_header)
+    if not width:
+        raise HTTPException(400, "CSV header is empty")
+    header = [value or f"Unnamed_{index + 1}" for index, value in enumerate(raw_header)]
+    date_indexes = [
+        index
+        for index, name in enumerate(header)
+        if any(token in name.lower() for token in ("date", "time", "timestamp"))
+    ]
+    normalized: list[list[str]] = []
+    repaired_rows = 0
+    for line_number, row in enumerate(rows[1:], 2):
+        while len(row) > width and not row[-1].strip():
+            row.pop()
+        if len(row) > width:
+            overflow = len(row) - width
+            repaired = False
+            for index in date_indexes:
+                end = index + overflow + 1
+                if end > len(row):
+                    continue
+                candidate = ",".join(row[index:end]).strip()
+                normalized_date = candidate.replace(",", "-")
+                if pd.notna(
+                    pd.to_datetime(
+                        normalized_date,
+                        errors="coerce",
+                        format="mixed",
+                        dayfirst=True,
+                    )
+                ):
+                    row = row[:index] + [normalized_date] + row[end:]
+                    repaired = True
+                    repaired_rows += 1
+                    break
+            if not repaired:
+                raise HTTPException(
+                    400,
+                    f"Invalid CSV: row {line_number} has {len(row)} fields; expected {width}",
+                )
+        if len(row) < width:
+            row = row + [""] * (width - len(row))
+            repaired_rows += 1
+        normalized.append(row)
+
+    frame = pd.DataFrame(normalized, columns=header)
+    return frame, ([f"repaired_{repaired_rows}_malformed_rows"] if repaired_rows else [])
+
+
 async def _load_csv_upload(
     file: UploadFile,
     target_column: Optional[str],
@@ -119,10 +188,7 @@ async def _load_csv_upload(
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-    try:
-        df = pd.read_csv(io.BytesIO(content))
-    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError) as exc:
-        raise HTTPException(400, f"Invalid CSV: {exc}") from exc
+    df, _ = _read_csv_content(content)
     if df.empty or len(df.columns) < 2:
         raise HTTPException(400, "CSV must contain data, at least one feature, and a target column")
 
@@ -334,6 +400,50 @@ async def optimize(
             status_code=500,
             detail="Optimization failed. Check the dataset and try again.",
         ) from exc
+
+
+@app.post("/api/clean")
+async def clean_dataset(file: UploadFile = File(...)):
+    """Clean mixed tabular data that does not have a classification target."""
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+
+    frame, parsing_steps = _read_csv_content(content)
+    if frame.empty:
+        raise HTTPException(400, "CSV must contain at least one data row")
+    try:
+        result = clean_for_human(frame)
+    except Exception as exc:
+        logger.exception("Dataset cleaning failed")
+        raise HTTPException(500, "SOFIDR could not clean this dataset") from exc
+
+    payload = result.dataframe.to_csv(index=False).encode("utf-8")
+    if len(payload) > MAX_ENHANCE_OUTPUT_SIZE:
+        raise HTTPException(413, "Cleaned CSV exceeds the maximum response size")
+
+    stem = os.path.splitext(os.path.basename(file.filename or "dataset.csv"))[0] or "dataset"
+    safe_stem = "".join(char if char.isalnum() or char in "-_" else "_" for char in stem)
+    steps = parsing_steps + result.steps
+    headers = {
+        "Content-Disposition": f'attachment; filename="{safe_stem}-sofidr-cleaned.csv"',
+        "X-SOFIDR-Input-Rows": str(result.before.n_rows),
+        "X-SOFIDR-Input-Columns": str(result.before.n_cols),
+        "X-SOFIDR-Output-Rows": str(result.after.n_rows),
+        "X-SOFIDR-Output-Columns": str(result.after.n_cols),
+        "X-SOFIDR-Duplicates-Removed": str(result.duplicate_rows_removed),
+        "X-SOFIDR-Missing-Filled": str(result.missing_filled),
+        "X-SOFIDR-Completeness-Before": str(result.before.completeness_pct),
+        "X-SOFIDR-Completeness-After": str(result.after.completeness_pct),
+        "X-SOFIDR-Cleaning-Steps": ",".join(steps),
+    }
+    return StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+        headers=headers,
+    )
 
 
 @app.post("/api/enhance")

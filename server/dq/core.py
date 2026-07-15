@@ -54,6 +54,21 @@ _IDENTIFIER_HINTS = re.compile(
     re.IGNORECASE,
 )
 
+_CURRENCY_CHARS = re.compile(r"[$€£¥,\s]")
+
+
+def coerce_numeric(s: pd.Series) -> pd.Series:
+    """Parse ordinary numbers plus common currency/thousands formatting."""
+    if pd.api.types.is_numeric_dtype(s):
+        return pd.to_numeric(s, errors="coerce")
+    text = s.astype("string").str.strip()
+    negative = text.str.match(r"^\(.*\)$", na=False)
+    text = text.str.replace(_CURRENCY_CHARS, "", regex=True)
+    text = text.str.replace(r"^\((.*)\)$", r"\1", regex=True)
+    parsed = pd.to_numeric(text, errors="coerce")
+    parsed.loc[negative & parsed.notna()] *= -1
+    return parsed
+
 
 def _looks_like_padded_number(s: pd.Series) -> bool:
     """'05880' -> True. Leading zeros mean the string form is load-bearing."""
@@ -136,7 +151,7 @@ def infer_role(name: str, s: pd.Series) -> Role:
         return "categorical"
 
     # 3. Object columns: numeric BEFORE datetime.
-    cast = pd.to_numeric(nn, errors="coerce")
+    cast = coerce_numeric(nn)
     if cast.notna().mean() >= 0.95:
         return "numeric"
 
@@ -188,7 +203,7 @@ def profile_column(name: str, s: pd.Series) -> ColumnReport:
     )
 
     if role == "numeric":
-        v = pd.to_numeric(s, errors="coerce")
+        v = coerce_numeric(s)
         r.n_uncastable = int((v.isna() & s.notna()).sum())
         if v.notna().any():
             r.mean = _json_safe(v.mean())
@@ -363,13 +378,19 @@ def structural_repair(
                 out[c] = out[c].astype("string")
                 casts.append(f"{c}->string (identifier)")
         elif role == "numeric" and out[c].dtype == object:
-            cast = pd.to_numeric(out[c], errors="coerce")
+            cast = coerce_numeric(out[c])
             # Only count NON-NULL values that fail. The old rule divided by
             # len(series), so a column with 10% missing could never convert.
             nn = out[c].notna()
             if nn.sum() and (cast[nn].notna().sum() / nn.sum()) >= 0.95:
                 out[c] = cast
                 casts.append(f"{c}->numeric")
+        elif role == "datetime" and not pd.api.types.is_datetime64_any_dtype(out[c]):
+            cast = pd.to_datetime(out[c], errors="coerce", format="mixed", dayfirst=True)
+            nn = out[c].notna()
+            if nn.sum() and (cast[nn].notna().sum() / nn.sum()) >= 0.95:
+                out[c] = cast
+                casts.append(f"{c}->datetime")
         elif role == "categorical" and out[c].dtype == object:
             out[c] = out[c].astype("category")
             casts.append(f"{c}->category")
