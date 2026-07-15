@@ -211,10 +211,9 @@ export const api = {
     if (params.epsilon !== undefined) query.set("epsilon", params.epsilon.toString())
 
     const suffix = query.toString() ? `?${query}` : ""
-    const res = await fetch(`${API_BASE}/optimize${suffix}`, {
-      method: "POST",
-      body: form,
-    })
+    const request: RequestInit = { method: "POST" }
+    if (params.file) request.body = form
+    const res = await fetch(`${API_BASE}/optimize${suffix}`, request)
 
     return readJson<OptimizeResponse>(res)
   },
