@@ -12,7 +12,7 @@ import pytest
 from sklearn.model_selection import StratifiedKFold
 
 from sofidr import SOFIDRFramework, KnowledgeBase, get_all
-from sofidr.formations import FORMATIONS, iqr_filter
+from sofidr.formations import FORMATIONS, enhance_dataset, iqr_filter
 from sofidr.sei import compute_sei
 from sofidr import terrain as terrain_mod
 from sofidr.datasets import breast_cancer, imbalanced, noisy_missing
@@ -97,3 +97,65 @@ def test_framework_returns_usable_pipeline(tmp_path):
     preds = res.fitted_pipeline.predict(X[:10])
     assert len(preds) == 10
     assert res.best_by_sei in FORMATIONS
+
+
+def test_enhancement_preserves_feature_and_target_names():
+    rng = np.random.default_rng(12)
+    X = rng.normal(size=(30, 4))
+    y = np.array(["control", "case"] * 15)
+    result = enhance_dataset(
+        "reconnaissance",
+        X,
+        y,
+        ["age", "score", "height", "weight"],
+        "diagnosis",
+    )
+
+    assert list(result.dataframe.columns) == [
+        "age", "score", "height", "weight", "diagnosis", "_sofidr_row_origin"
+    ]
+    assert result.dataframe["diagnosis"].tolist() == y.tolist()
+    assert result.steps == ["impute"]
+
+
+def test_enhancement_uses_pca_names_and_preserves_labels():
+    rng = np.random.default_rng(4)
+    X = rng.normal(size=(40, 8))
+    y = np.array(["low", "high"] * 20)
+    result = enhance_dataset(
+        "heavy_cavalry", X, y, [f"sensor_{i}" for i in range(8)], "risk"
+    )
+
+    assert list(result.dataframe.columns[:5]) == [
+        "pc_1", "pc_2", "pc_3", "pc_4", "pc_5"
+    ]
+    assert result.dataframe.columns[-2:].tolist() == ["risk", "_sofidr_row_origin"]
+    assert set(result.dataframe["risk"]) == {"low", "high"}
+
+
+def test_enhancement_reports_outlier_removal_as_original_provenance():
+    rng = np.random.default_rng(8)
+    X = rng.normal(scale=0.2, size=(40, 3))
+    X[0] = 100
+    y = np.array([0, 1] * 20)
+    result = enhance_dataset("phalanx", X, y, ["a", "b", "c"], "target")
+
+    assert result.removed_rows >= 1
+    assert result.output_rows == result.input_rows - result.removed_rows
+    assert set(result.dataframe["_sofidr_row_origin"]) == {"original"}
+
+
+def test_smote_keeps_original_prefix_and_marks_generated_rows():
+    rng = np.random.default_rng(21)
+    X = rng.normal(size=(16, 3))
+    y = np.array(["majority"] * 12 + ["minority"] * 4)
+    result = enhance_dataset("guerrilla", X, y, ["x", "y", "z"], "class")
+
+    assert result.synthetic_rows == 8
+    assert result.dataframe["_sofidr_row_origin"].iloc[:16].eq("original").all()
+    assert result.dataframe["_sofidr_row_origin"].iloc[16:].eq("synthetic").all()
+    assert result.dataframe["class"].iloc[:16].tolist() == y.tolist()
+    assert result.dataframe["class"].value_counts().to_dict() == {
+        "majority": 12,
+        "minority": 12,
+    }

@@ -115,7 +115,7 @@ export default function App() {
     setDemoActive(true)
     window.requestAnimationFrame(() => {
       document.getElementById("process-demo")?.scrollIntoView({
-        behavior: "smooth",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
         block: "start",
       })
     })
@@ -123,10 +123,11 @@ export default function App() {
 
   const focusBenchmarkPicker = () => {
     document.getElementById("analysis")?.scrollIntoView({
-      behavior: "smooth",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "start",
     })
-    window.setTimeout(() => benchmarkButtonRef.current?.focus({ preventScroll: true }), 450)
+    const focusDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 450
+    window.setTimeout(() => benchmarkButtonRef.current?.focus({ preventScroll: true }), focusDelay)
   }
 
   const resetAnalysis = () => {

@@ -1,17 +1,25 @@
 import React from "react"
-import { OptimizeResponse, Formation } from "../api"
+import { OptimizeResponse, Formation, EnhanceResponse } from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
 
 interface ResultsDisplayProps {
   result: OptimizeResponse
   formations: Formation
+  enhancement: EnhanceResponse | null
+  enhancementLoading: boolean
+  enhancementError: string
+  isUploadedFile: boolean
   onReset: () => void
 }
 
 export default function ResultsDisplay({
   result,
   formations,
+  enhancement,
+  enhancementLoading,
+  enhancementError,
+  isUploadedFile,
   onReset,
 }: ResultsDisplayProps) {
   const bestFormation = formations[result.best_by_sei] || {}
@@ -40,6 +48,19 @@ export default function ResultsDisplay({
     a.click()
     URL.revokeObjectURL(url)
   }
+
+  const downloadEnhancedCsv = () => {
+    if (!enhancement) return
+    const url = URL.createObjectURL(enhancement.blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = enhancement.metadata.filename
+    a.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  const dimension = (rows: number | null, columns: number | null) =>
+    rows === null || columns === null ? "Not reported" : `${rows.toLocaleString()} × ${columns}`
 
   if (!result.success) {
     return (
@@ -93,6 +114,104 @@ export default function ResultsDisplay({
           </p>
         </div>
       </Card>
+
+      {isUploadedFile && (
+        <Card className="enhancement-card" aria-live="polite">
+          <div className="enhancement-heading">
+            <div>
+              <p className="eyebrow">Final model-ready artifact</p>
+              <h3>Enhanced CSV</h3>
+            </div>
+            {enhancement && <span className="artifact-ready">Ready to download</span>}
+          </div>
+
+          {enhancementLoading && (
+            <div className="enhancement-status" role="status">
+              <span className="enhancement-spinner" aria-hidden="true" />
+              <div>
+                <strong>Applying {result.best_by_sei.replace(/_/g, " ")}</strong>
+                <p>The winning formation is preparing your final CSV.</p>
+              </div>
+            </div>
+          )}
+
+          {enhancementError && (
+            <div className="enhancement-error" role="alert">
+              <strong>Analysis finished, but enhancement could not complete.</strong>
+              <p>{enhancementError}</p>
+              <p>Your decision record is still available below.</p>
+            </div>
+          )}
+
+          {enhancement && (
+            <>
+              <dl className="artifact-metrics">
+                <div>
+                  <dt>Before</dt>
+                  <dd>{dimension(enhancement.metadata.before.rows, enhancement.metadata.before.columns)}</dd>
+                  <span>rows × columns</span>
+                </div>
+                <div>
+                  <dt>After</dt>
+                  <dd>{dimension(enhancement.metadata.after.rows, enhancement.metadata.after.columns)}</dd>
+                  <span>rows × columns</span>
+                </div>
+                <div>
+                  <dt>Synthetic rows</dt>
+                  <dd>{enhancement.metadata.syntheticCount.toLocaleString()}</dd>
+                  <span>added by formation</span>
+                </div>
+              </dl>
+
+              <div className="artifact-detail-grid">
+                <div className="formation-steps">
+                  <span className="detail-label">Formation steps</span>
+                  {enhancement.metadata.formationSteps.length ? (
+                    <ol>
+                      {enhancement.metadata.formationSteps.map((step, index) => (
+                        <li key={`${step}-${index}`}>{step}</li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p>{enhancement.metadata.formation.replace(/_/g, " ")}</p>
+                  )}
+                </div>
+                <div className="csv-preview">
+                  <div className="preview-heading">
+                    <span className="detail-label">CSV preview</span>
+                    <span>First {enhancement.preview.rows.length} rows</span>
+                  </div>
+                  <div className="table-container">
+                    <table>
+                      <caption className="sr-only">
+                        Preview of the enhanced model-ready CSV
+                      </caption>
+                      <thead>
+                        <tr>
+                          {enhancement.preview.columns.map((column, index) => (
+                            <th key={`${column}-${index}`} scope="col">{column || `Column ${index + 1}`}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {enhancement.preview.rows.map((row, rowIndex) => (
+                          <tr key={rowIndex}>
+                            {enhancement.preview.columns.map((_, columnIndex) => (
+                              <td key={columnIndex} title={row[columnIndex] || ""}>
+                                {row[columnIndex] || "—"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
 
       <div className="results-grid">
         <Card className="scoreboard">
@@ -196,8 +315,13 @@ export default function ResultsDisplay({
       </Card>
 
       <div className="actions">
-        <Button onClick={downloadResults} className="download-btn">
-          Export decision record
+        {enhancement && (
+          <Button onClick={downloadEnhancedCsv} className="download-btn">
+            Download enhanced CSV
+          </Button>
+        )}
+        <Button onClick={downloadResults} variant="secondary">
+          Export decision record (JSON)
         </Button>
         <Button onClick={onReset} variant="secondary">
           Optimize Another Dataset
