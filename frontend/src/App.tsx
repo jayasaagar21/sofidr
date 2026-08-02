@@ -84,53 +84,25 @@ export default function App() {
       loading: true,
       error: "",
       sourceFile: file,
+      result: null,
       enhancement: null,
       enhancementLoading: false,
       enhancementError: "",
       cleaning: null,
     }))
     try {
-      const result = await api.optimize({ file })
+      // Every dataset is cleaned first and returned as an enhanced artifact.
+      const cleaning = await api.clean(file, "csv")
       setState((s) => ({
         ...s,
-        result,
+        cleaning,
+        result: null,
         loading: false,
-        enhancementLoading: result.success,
+        error: "",
       }))
-      if (!result.success) return
-
-      try {
-        const enhancement = await api.enhance(file, result.best_by_sei)
-        setState((s) => ({ ...s, enhancement, enhancementLoading: false }))
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Unknown error"
-        setState((s) => ({
-          ...s,
-          enhancementError: msg,
-          enhancementLoading: false,
-        }))
-      }
-    } catch (optimizationError) {
-      try {
-        const cleaning = await api.clean(file)
-        setState((s) => ({
-          ...s,
-          result: null,
-          cleaning,
-          loading: false,
-          error: "",
-        }))
-      } catch (cleaningError) {
-        const optimizeMessage =
-          optimizationError instanceof Error ? optimizationError.message : "analysis failed"
-        const cleanMessage =
-          cleaningError instanceof Error ? cleaningError.message : "cleaning failed"
-        setState((s) => ({
-          ...s,
-          error: `SOFIDR could not analyze or clean this file. ${optimizeMessage}; ${cleanMessage}`,
-          loading: false,
-        }))
-      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      setState((s) => ({ ...s, error: msg, loading: false }))
     }
   }
 
@@ -207,6 +179,7 @@ export default function App() {
         {state.cleaning ? (
           <CleaningResultsDisplay
             result={state.cleaning}
+            sourceFile={state.sourceFile}
             sourceName={state.sourceFile?.name || "Uploaded dataset"}
             onReset={resetAnalysis}
           />
@@ -224,12 +197,12 @@ export default function App() {
           <div className="input-section">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Start an analysis</p>
-                <h2>Bring a dataset or explore a terrain.</h2>
+                <p className="eyebrow">Start processing</p>
+                <h2>Bring any common dataset or explore a terrain.</h2>
               </div>
               <p>
-                Your upload is processed for this request only. SOFIDR optimizes
-                classification data and falls back to safe cleaning for mixed datasets.
+                Your upload is processed for this request only. Every file is cleaned
+                and returned as an enhanced CSV, Excel, or JSON download.
               </p>
             </div>
             <div className="input-container">

@@ -153,7 +153,7 @@ def test_enhance_rejects_unknown_formation_and_malformed_csv():
     assert unknown.status_code == 400
     assert "Unknown formation" in unknown.json()["detail"]
     assert malformed.status_code == 400
-    assert "Invalid CSV" in malformed.json()["detail"]
+    assert "Invalid" in malformed.json()["detail"]
 
 
 def test_enhance_requires_enough_rows_per_class_for_smote():
@@ -258,10 +258,11 @@ def test_clean_accepts_malformed_mixed_business_dataset():
 
     assert response.status_code == 200, response.text
     assert response.headers["content-disposition"] == (
-        'attachment; filename="messy_transactions-sofidr-cleaned.csv"'
+        'attachment; filename="messy_transactions-sofidr-enhanced.csv"'
     )
     assert response.headers["x-sofidr-duplicates-removed"] == "1"
     assert response.headers["x-sofidr-completeness-after"] == "100.0"
+    assert response.headers["x-sofidr-export-format"] == "csv"
     assert "repaired_2_malformed_rows" in response.headers["x-sofidr-cleaning-steps"]
 
     cleaned = pd.read_csv(io.BytesIO(response.content))
@@ -274,3 +275,41 @@ def test_clean_accepts_malformed_mixed_business_dataset():
     assert cleaned.loc[1, "Price_Paid"] == 45.5
     assert cleaned.loc[1, "Country"] == "United Kingdom"
     assert cleaned["Age"].between(0, 120).all()
+
+
+def test_clean_supports_json_and_excel_round_trips():
+    records = [
+        {"id": 1, "name": " alice ", "amount": "$10.00", "country": "usa"},
+        {"id": 1, "name": " alice ", "amount": "$10.00", "country": "usa"},
+        {"id": 2, "name": "bob", "amount": "N/A", "country": "UK"},
+    ]
+    json_payload = json.dumps(records).encode()
+    json_response = client.post(
+        "/api/clean?format=json",
+        files={"file": ("sales.json", io.BytesIO(json_payload), "application/json")},
+    )
+    assert json_response.status_code == 200, json_response.text
+    assert json_response.headers["x-sofidr-export-format"] == "json"
+    body = json.loads(json_response.content)
+    assert isinstance(body["data"], list)
+    assert len(body["data"]) == 2
+    assert body["data"][0]["name"] == "Alice"
+    assert body["data"][0]["country"] == "United States"
+
+    excel_buffer = io.BytesIO()
+    pd.DataFrame(records).to_excel(excel_buffer, index=False)
+    excel_response = client.post(
+        "/api/clean?format=xlsx",
+        files={
+            "file": (
+                "sales.xlsx",
+                io.BytesIO(excel_buffer.getvalue()),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+    assert excel_response.status_code == 200, excel_response.text
+    assert excel_response.headers["x-sofidr-export-format"] == "xlsx"
+    assert excel_response.content[:2] == b"PK"
+    workbook = load_workbook(io.BytesIO(excel_response.content), read_only=True)
+    assert workbook.sheetnames == ["Enhanced Data"]

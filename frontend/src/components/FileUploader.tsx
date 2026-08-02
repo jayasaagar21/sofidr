@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react"
 import { Button } from "./ui/Button"
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024
+const ACCEPTED_EXTENSIONS = [".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".json"]
 
 interface FileUploaderProps {
   loading: boolean
@@ -15,12 +16,18 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
 
   const validateAndUpload = (file: File) => {
     setError("")
-    if (!(file.type === "text/csv" || file.name.toLowerCase().endsWith(".csv"))) {
-      setError("Please upload a CSV file.")
+    const lower = file.name.toLowerCase()
+    const allowed =
+      ACCEPTED_EXTENSIONS.some((ext) => lower.endsWith(ext)) ||
+      ["text/csv", "text/tab-separated-values", "application/json", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"].includes(
+        file.type
+      )
+    if (!allowed) {
+      setError("Upload CSV, TSV, Excel (.xlsx), or JSON.")
       return
     }
     if (file.size > MAX_FILE_SIZE) {
-      setError("This file is larger than 4 MB. Choose a smaller CSV.")
+      setError("This file is larger than 4 MB. Choose a smaller file for the current deployment limits.")
       return
     }
     onUpload(file)
@@ -55,8 +62,8 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
       <div className="panel-heading">
         <span className="step-number">02</span>
         <div>
-          <h3>Analyze or clean your data</h3>
-          <p>Classification files are optimized; mixed business datasets are cleaned automatically.</p>
+          <h3>Clean and enhance any dataset</h3>
+          <p>Every upload goes through SOFIDR cleaning and returns an enhanced file.</p>
         </div>
       </div>
       <div
@@ -70,7 +77,7 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv"
+          accept=".csv,.tsv,.txt,.xlsx,.xlsm,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           onChange={handleChange}
           disabled={loading}
           hidden
@@ -86,22 +93,24 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
             />
           </svg>
           </div>
-          <strong>Drop your CSV here</strong>
+          <strong>Drop your dataset here</strong>
           <p>or select a file from your device</p>
           <Button
             onClick={() => inputRef.current?.click()}
             disabled={loading}
             variant="secondary"
           >
-            Choose CSV
+            Choose file
           </Button>
         </div>
       </div>
       <p className="file-hint" id="file-requirements">
-        <span>CSV only</span><span>4 MB maximum</span><span>Target column optional</span>
+        <span>CSV · TSV · Excel · JSON</span>
+        <span>4 MB maximum</span>
+        <span>No target column required</span>
       </p>
       <p className="file-output-note">
-        SOFIDR repairs malformed rows, duplicates, missing values, mixed types, dates, and common business fields.
+        SOFIDR repairs structure and common field issues, then returns enhanced CSV, Excel, and JSON downloads.
       </p>
       {error && <p className="error-message" role="alert">{error}</p>}
     </div>

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react"
 
 const stages = [
-  { title: "Reading terrain", detail: "Profiling shape, classes, and feature conditions." },
-  { title: "Testing formations", detail: "Running leak-resistant comparisons on shared folds." },
-  { title: "Ranking by SEI", detail: "Balancing accuracy, stability, retention, and simplicity." },
-  { title: "Preparing recommendation", detail: "Building the decision record and next action." },
+  { title: "Reading dataset", detail: "Parsing CSV, TSV, Excel, or JSON into a tabular frame." },
+  { title: "Repairing structure", detail: "Fixing malformed rows, duplicates, types, and sentinels." },
+  { title: "Enhancing fields", detail: "Normalizing dates, currency, categories, and missing values." },
+  { title: "Preparing downloads", detail: "Building the enhanced CSV, Excel, and JSON outputs." },
 ]
 
 export default function AnalysisProgress() {

@@ -66,6 +66,7 @@ export interface EnhanceResponse {
 }
 
 export type ReportFormat = "json" | "html" | "pdf" | "xlsx"
+export type DataExportFormat = "csv" | "xlsx" | "json"
 
 export interface ReportResponse {
   blob: Blob
@@ -81,6 +82,8 @@ export interface CleaningMetadata {
   completenessBefore: number | null
   completenessAfter: number | null
   steps: string[]
+  exportFormat: DataExportFormat
+  sourceFormat: string
 }
 
 export interface CleanResponse {
@@ -286,10 +289,17 @@ export const api = {
     return { blob, metadata, preview: parseCsvPreview(previewText) }
   },
 
-  async clean(file: File): Promise<CleanResponse> {
+  async clean(
+    file: File,
+    exportFormat: DataExportFormat = "csv"
+  ): Promise<CleanResponse> {
     const form = new FormData()
     form.append("file", file, file.name)
-    const res = await fetch(`${API_BASE}/clean`, { method: "POST", body: form })
+    const query = new URLSearchParams({ format: exportFormat })
+    const res = await fetch(`${API_BASE}/clean?${query}`, {
+      method: "POST",
+      body: form,
+    })
     if (!res.ok) {
       const data = await res.json().catch(() => null)
       const detail =
@@ -299,10 +309,13 @@ export const api = {
       throw new Error(detail)
     }
     const blob = await res.blob()
-    const previewText = await blob.slice(0, 256 * 1024).text()
+    const preview =
+      exportFormat === "csv"
+        ? parseCsvPreview(await blob.slice(0, 256 * 1024).text())
+        : { columns: [], rows: [], truncated: false }
     return {
       blob,
-      preview: parseCsvPreview(previewText),
+      preview,
       metadata: {
         filename: responseFilename(res.headers),
         before: {
@@ -325,6 +338,10 @@ export const api = {
           "X-SOFIDR-Completeness-After"
         ),
         steps: parseSteps(res.headers.get("X-SOFIDR-Cleaning-Steps")),
+        exportFormat:
+          (headerValue(res.headers, "X-SOFIDR-Export-Format") as DataExportFormat) ||
+          exportFormat,
+        sourceFormat: headerValue(res.headers, "X-SOFIDR-Source-Format") || "unknown",
       },
     }
   },

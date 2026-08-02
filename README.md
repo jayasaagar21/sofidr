@@ -7,9 +7,11 @@ SOFIDR (Strategic Optimization Framework for Iterative Data Regeneration) compar
 Included:
 
 - Archetype selection
-- CSV classification analysis through `POST /api/optimize`
-- Model-ready CSV enhancement through the deterministic best-by-SEI formation
-- Automatic cleaning-only fallback for malformed mixed business CSVs without a target
+- Universal dataset cleaning through `POST /api/clean` for CSV, TSV, Excel, and JSON
+- Enhanced dataset downloads in CSV, Excel, and JSON
+- Classification analysis through `POST /api/optimize`
+- Model-ready formation enhancement through `POST /api/enhance`
+- Portable analysis reports through `POST /api/report` (JSON, HTML, PDF, Excel)
 - Formation and terrain reporting
 - Static demos at `/demo.html` and `/client-demo.html`
 - Live upload demo at `/dynamic-demo.html`
@@ -17,13 +19,9 @@ Included:
 
 Not included:
 
-- Manual data-cleaning and profiling UI
-- `/api/profile`
-- `/api/clean`
-- `/api/download`
 - Persistent run storage
-
-The `dq` package is library-only and has no HTTP endpoints.
+- Files larger than the Vercel Hobby body limit (~4 MB)
+- Binary/non-tabular formats outside CSV, TSV, Excel, and JSON
 
 ## Local development
 
@@ -57,13 +55,13 @@ The Vite development server proxies `/api` to `localhost:8000`. Production reque
 - `POST /api/enhance`
 - `POST /api/report?format=json|html|pdf|xlsx`
 
-`/api/optimize` accepts either an `archetype` query parameter or a multipart CSV field named `file`. For CSV uploads, the final column is used as the target unless `target_column` is supplied.
+Uploads always run through cleaning first in the web app. `/api/clean` accepts CSV, TSV, Excel (`.xlsx`), or JSON and returns an enhanced dataset as `?format=csv|xlsx|json`.
 
-`/api/clean` repairs conservative structural and semantic quality issues without requiring a target: malformed split date fields, trailing empty columns, whitespace, missing sentinels, exact duplicates, common currency values, dates, names, emails, categories, country aliases, and implausible ages. It returns a human-readable cleaned CSV and quality metadata headers.
+`/api/optimize` accepts either an `archetype` query parameter or a multipart tabular file. For classification uploads, the final column is used as the target unless `target_column` is supplied.
 
-`/api/enhance` accepts the original multipart CSV plus the deterministic `best_by_sei` formation returned by `/api/optimize`. It applies that formation to the full numeric feature matrix and returns a downloadable model-ready CSV with the target and row-origin metadata.
+`/api/enhance` accepts a classification dataset plus the deterministic `best_by_sei` formation and returns a model-ready export as CSV, Excel, or JSON.
 
-`/api/report` accepts a successful optimization response and renders the analysis as JSON, standalone HTML, PDF, or Excel. The web results view exposes each format as a direct download.
+`/api/report` accepts a successful optimization response and renders the analysis as JSON, standalone HTML, PDF, or Excel.
 
 ## Deployment constraints
 

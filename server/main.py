@@ -13,8 +13,6 @@ Environment variables (set in Vercel config, or a .env for local dev):
 
 from __future__ import annotations
 
-import csv
-import io
 import logging
 import os
 import time
@@ -38,7 +36,13 @@ try:
     from sofidr.exports import REPORT_FORMATS, build_report
     from sofidr.formations import FORMATIONS, enhance_dataset
     from sofidr.report import render
-    from dq import clean_for_human
+    from dq import (
+        DATA_EXPORT_FORMATS,
+        clean_for_human,
+        export_dataframe,
+        read_tabular,
+        safe_filename_stem,
+    )
 except ImportError:
     print("Warning: SOFIDR package not found. Install with: pip install -r requirements.txt")
     raise
@@ -76,6 +80,8 @@ app.add_middleware(
         "X-SOFIDR-Completeness-Before",
         "X-SOFIDR-Completeness-After",
         "X-SOFIDR-Cleaning-Steps",
+        "X-SOFIDR-Export-Format",
+        "X-SOFIDR-Source-Format",
     ],
 )
 
@@ -116,74 +122,14 @@ class UploadedDataset:
     filename: str
 
 
-def _read_csv_content(content: bytes) -> tuple[pd.DataFrame, list[str]]:
-    """Read valid CSVs normally and conservatively repair split date fields."""
-    try:
-        text = content.decode("utf-8-sig")
-        rows = list(csv.reader(io.StringIO(text), strict=True))
-    except (UnicodeDecodeError, csv.Error) as exc:
-        raise HTTPException(400, f"Invalid CSV: {exc}") from exc
-    if len(rows) < 2:
-        raise HTTPException(400, "CSV must contain a header and data rows")
-
-    raw_header = [value.strip() for value in rows[0]]
-    while raw_header and not raw_header[-1]:
-        raw_header.pop()
-    width = len(raw_header)
-    if not width:
-        raise HTTPException(400, "CSV header is empty")
-    header = [value or f"Unnamed_{index + 1}" for index, value in enumerate(raw_header)]
-    date_indexes = [
-        index
-        for index, name in enumerate(header)
-        if any(token in name.lower() for token in ("date", "time", "timestamp"))
-    ]
-    normalized: list[list[str]] = []
-    repaired_rows = 0
-    for line_number, row in enumerate(rows[1:], 2):
-        while len(row) > width and not row[-1].strip():
-            row.pop()
-        if len(row) > width:
-            overflow = len(row) - width
-            repaired = False
-            for index in date_indexes:
-                end = index + overflow + 1
-                if end > len(row):
-                    continue
-                candidate = ",".join(row[index:end]).strip()
-                normalized_date = candidate.replace(",", "-")
-                if pd.notna(
-                    pd.to_datetime(
-                        normalized_date,
-                        errors="coerce",
-                        format="mixed",
-                        dayfirst=True,
-                    )
-                ):
-                    row = row[:index] + [normalized_date] + row[end:]
-                    repaired = True
-                    repaired_rows += 1
-                    break
-            if not repaired:
-                raise HTTPException(
-                    400,
-                    f"Invalid CSV: row {line_number} has {len(row)} fields; expected {width}",
-                )
-        if len(row) < width:
-            row = row + [""] * (width - len(row))
-            repaired_rows += 1
-        normalized.append(row)
-
-    frame = pd.DataFrame(normalized, columns=header)
-    frame = frame.replace(r"^\s*$", np.nan, regex=True)
-    for column in frame.columns:
-        non_missing = frame[column].notna()
-        if not non_missing.any():
-            continue
-        numeric = pd.to_numeric(frame[column], errors="coerce")
-        if numeric[non_missing].notna().all():
-            frame[column] = numeric
-    return frame, ([f"repaired_{repaired_rows}_malformed_rows"] if repaired_rows else [])
+async def _read_upload(file: UploadFile) -> tuple[bytes, pd.DataFrame, list[str]]:
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+    frame, steps = read_tabular(content, file.filename)
+    return content, frame, steps
 
 
 async def _load_csv_upload(
@@ -191,14 +137,9 @@ async def _load_csv_upload(
     target_column: Optional[str],
     min_class_rows: int,
 ) -> UploadedDataset:
-    if file.size and file.size > MAX_FILE_SIZE:
-        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-    df, _ = _read_csv_content(content)
+    _, df, _ = await _read_upload(file)
     if df.empty or len(df.columns) < 2:
-        raise HTTPException(400, "CSV must contain data, at least one feature, and a target column")
+        raise HTTPException(400, "Dataset must contain data, at least one feature, and a target column")
 
     target_name = target_column or str(df.columns[-1])
     if target_name not in df.columns:
@@ -411,32 +352,40 @@ async def optimize(
 
 
 @app.post("/api/clean")
-async def clean_dataset(file: UploadFile = File(...)):
-    """Clean mixed tabular data that does not have a classification target."""
-    if file.size and file.size > MAX_FILE_SIZE:
-        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(413, f"File too large (max {MAX_FILE_SIZE / 1024 / 1024:.0f}MB)")
+async def clean_dataset(
+    file: UploadFile = File(...),
+    export_format: str = Query("csv", alias="format", pattern="^(csv|xlsx|json)$"),
+):
+    """Clean any supported tabular dataset and return an enhanced download."""
+    if export_format not in DATA_EXPORT_FORMATS:
+        raise HTTPException(400, f"Unsupported export format: {export_format}")
 
-    frame, parsing_steps = _read_csv_content(content)
+    _, frame, parsing_steps = await _read_upload(file)
     if frame.empty:
-        raise HTTPException(400, "CSV must contain at least one data row")
+        raise HTTPException(400, "Dataset must contain at least one data row")
     try:
         result = clean_for_human(frame)
     except Exception as exc:
         logger.exception("Dataset cleaning failed")
         raise HTTPException(500, "SOFIDR could not clean this dataset") from exc
 
-    payload = result.dataframe.to_csv(index=False).encode("utf-8")
+    try:
+        payload, media_type, extension = export_dataframe(result.dataframe, export_format)
+    except Exception as exc:
+        logger.exception("Cleaned dataset export failed")
+        raise HTTPException(500, "SOFIDR cleaned the data but could not export it") from exc
     if len(payload) > MAX_ENHANCE_OUTPUT_SIZE:
-        raise HTTPException(413, "Cleaned CSV exceeds the maximum response size")
+        raise HTTPException(
+            413,
+            "Enhanced dataset exceeds the maximum response size "
+            f"({MAX_ENHANCE_OUTPUT_SIZE / 1024 / 1024:.0f}MB)",
+        )
 
-    stem = os.path.splitext(os.path.basename(file.filename or "dataset.csv"))[0] or "dataset"
-    safe_stem = "".join(char if char.isalnum() or char in "-_" else "_" for char in stem)
+    safe_stem = safe_filename_stem(file.filename)
     steps = parsing_steps + result.steps
+    source_ext = os.path.splitext(file.filename or "")[1].lstrip(".").lower() or "unknown"
     headers = {
-        "Content-Disposition": f'attachment; filename="{safe_stem}-sofidr-cleaned.csv"',
+        "Content-Disposition": f'attachment; filename="{safe_stem}-sofidr-enhanced.{extension}"',
         "X-SOFIDR-Input-Rows": str(result.before.n_rows),
         "X-SOFIDR-Input-Columns": str(result.before.n_cols),
         "X-SOFIDR-Output-Rows": str(result.after.n_rows),
@@ -446,10 +395,12 @@ async def clean_dataset(file: UploadFile = File(...)):
         "X-SOFIDR-Completeness-Before": str(result.before.completeness_pct),
         "X-SOFIDR-Completeness-After": str(result.after.completeness_pct),
         "X-SOFIDR-Cleaning-Steps": ",".join(steps),
+        "X-SOFIDR-Export-Format": export_format,
+        "X-SOFIDR-Source-Format": source_ext,
     }
     return StreamingResponse(
         iter([payload]),
-        media_type="text/csv",
+        media_type=media_type,
         headers=headers,
     )
 
@@ -458,11 +409,14 @@ async def clean_dataset(file: UploadFile = File(...)):
 async def enhance(
     formation: str = Query(...),
     target_column: Optional[str] = Query(None),
+    export_format: str = Query("csv", alias="format", pattern="^(csv|xlsx|json)$"),
     file: UploadFile = File(...),
 ):
-    """Apply a registered formation to every row of an uploaded CSV."""
+    """Apply a registered formation to every row of an uploaded classification dataset."""
     if formation not in FORMATIONS:
         raise HTTPException(400, f"Unknown formation: {formation}")
+    if export_format not in DATA_EXPORT_FORMATS:
+        raise HTTPException(400, f"Unsupported export format: {export_format}")
 
     upload = await _load_csv_upload(file, target_column, min_class_rows=2)
     try:
@@ -481,17 +435,20 @@ async def enhance(
             500, "Enhancement failed. Check the dataset and formation."
         ) from exc
 
-    payload = result.dataframe.to_csv(index=False).encode("utf-8")
+    try:
+        payload, media_type, extension = export_dataframe(result.dataframe, export_format)
+    except Exception as exc:
+        logger.exception("Enhanced dataset export failed")
+        raise HTTPException(500, "SOFIDR enhanced the data but could not export it") from exc
     if len(payload) > MAX_ENHANCE_OUTPUT_SIZE:
         raise HTTPException(
             413,
-            "Enhanced CSV exceeds the maximum response size "
+            "Enhanced dataset exceeds the maximum response size "
             f"({MAX_ENHANCE_OUTPUT_SIZE / 1024 / 1024:.0f}MB)",
         )
 
-    stem = os.path.splitext(os.path.basename(upload.filename))[0] or "upload"
-    safe_stem = "".join(char if char.isalnum() or char in "-_" else "_" for char in stem)
-    filename = f"{safe_stem}-{formation}-sofidr.csv"
+    safe_stem = safe_filename_stem(upload.filename, "upload")
+    filename = f"{safe_stem}-{formation}-sofidr.{extension}"
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"',
         "X-SOFIDR-Input-Rows": str(result.input_rows),
@@ -501,10 +458,11 @@ async def enhance(
         "X-SOFIDR-Synthetic-Rows": str(result.synthetic_rows),
         "X-SOFIDR-Removed-Rows": str(result.removed_rows),
         "X-SOFIDR-Steps": ",".join(result.steps),
+        "X-SOFIDR-Export-Format": export_format,
     }
     return StreamingResponse(
         iter([payload]),
-        media_type="text/csv",
+        media_type=media_type,
         headers=headers,
     )
 
