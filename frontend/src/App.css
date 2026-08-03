@@ -800,14 +800,33 @@ a:focus-visible {
 }
 
 .archetype-card {
-  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 160px;
   margin: 0;
   padding: 1.1rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  appearance: none;
 }
 
-.archetype-card:hover {
+.archetype-card:hover:not(:disabled) {
   border-color: rgba(201, 247, 111, .5);
   transform: translateY(-3px);
+}
+
+.archetype-card:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+
+.archetype-card:disabled {
+  cursor: wait;
+  opacity: .7;
 }
 
 .archetype-meta {
@@ -824,8 +843,7 @@ a:focus-visible {
 }
 
 .archetype-card p {
-  min-height: 2.5rem;
-  margin: 0 0 1.2rem;
+  margin: 0;
   color: var(--muted);
   font-size: .76rem;
   line-height: 1.5;

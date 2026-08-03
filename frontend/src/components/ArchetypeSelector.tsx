@@ -1,6 +1,4 @@
 import React from "react"
-import { Button } from "./ui/Button"
-import { Card } from "./ui/Card"
 
 interface ArchetypeSelectorProps {
   archetypes: Record<string, string>
@@ -34,21 +32,19 @@ export default function ArchetypeSelector({
       </div>
       <div className="archetype-grid">
         {Object.entries(archetypes).map(([key, desc], index) => (
-          <Card key={key} className="archetype-card">
-            <div>
-              <span className="archetype-meta">{labels[key]?.meta || "Benchmark dataset"}</span>
-              <h4>{labels[key]?.title || key.replace(/_/g, " ")}</h4>
-              <p>{desc}</p>
-            </div>
-            <Button
-              ref={index === 0 ? firstButtonRef : undefined}
-              onClick={() => onSelect(key)}
-              disabled={loading}
-              className="w-full"
-            >
-              Run analysis <span aria-hidden="true">→</span>
-            </Button>
-          </Card>
+          <button
+            key={key}
+            type="button"
+            ref={index === 0 ? firstButtonRef : undefined}
+            className="card archetype-card"
+            onClick={() => onSelect(key)}
+            disabled={loading}
+            aria-label={`Run ${labels[key]?.title || key.replace(/_/g, " ")} analysis`}
+          >
+            <span className="archetype-meta">{labels[key]?.meta || "Benchmark dataset"}</span>
+            <h4>{labels[key]?.title || key.replace(/_/g, " ")}</h4>
+            <p>{desc}</p>
+          </button>
         ))}
         {!Object.keys(archetypes).length && !loading && (
           <p className="empty-state">Benchmark datasets are temporarily unavailable.</p>
