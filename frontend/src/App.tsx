@@ -173,6 +173,26 @@ export default function App() {
         </div>
       </header>
 
+      <section className="intro" aria-labelledby="intro-heading">
+        <div className="intro-inner">
+          <p className="eyebrow">Introduction</p>
+          <h2 id="intro-heading">What is SOFIDR?</h2>
+          <p>
+            SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
+            is an analysis engine for tabular data. It cleans common dataset formats,
+            compares eight leak-resistant preprocessing formations on the same
+            cross-validation folds, and ranks strategies with a Strategic Efficiency
+            Index so you can defend the choice with evidence, not guesswork.
+          </p>
+          <p>
+            Upload CSV, TSV, Excel, or JSON for cleaning and enhancement, or explore a
+            prepared benchmark to see how SOFIDR reasons under missing values,
+            imbalance, high dimensionality, and correlated features. Download enhanced
+            datasets and portable reports when you are done.
+          </p>
+        </div>
+      </section>
+
       <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusBenchmarkPicker} />
 
       <main className="app-main" id="analysis">
@@ -227,11 +247,7 @@ export default function App() {
 
       <footer className="app-footer">
         <p>SOFIDR · Strategic Optimization Framework for Iterative Data Regeneration</p>
-        <p>
-          <a href="https://github.com/jayasaagar21/sofidr" target="_blank" rel="noopener noreferrer">
-            Source code
-          </a>
-        </p>
+        <p className="footer-copy">© 2026 Jayasaagar C</p>
       </footer>
     </div>
   )
