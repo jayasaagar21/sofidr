@@ -38,7 +38,6 @@ from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.feature_selection import (
     SelectKBest,
-    VarianceThreshold,
     mutual_info_classif,
 )
 from sklearn.decomposition import PCA
@@ -125,16 +124,13 @@ class Formation:
     feature_select: bool
     decompose: bool               # PCA
     sample: Optional[str]         # 'smote' | None
-    variance_filter: bool = False
     target_terrain: str = ""
-    paper: bool = True            # part of the published 6 formations?
+    paper: bool = True
     icon: str = ""
 
     # ----- analytic output dimensionality (for the SEI simplicity term) ----- #
     def output_dim(self, n_features: int) -> int:
         d = n_features
-        if self.variance_filter:
-            pass  # variance filter may drop columns at fit time; treat as <= d
         if self.feature_select and d > 10:
             d = min(10, d)
         if self.decompose and d > 5:
@@ -143,9 +139,6 @@ class Formation:
 
     def build_steps(self, n_features: int, minority_count: int):
         steps = [("impute", _IMPUTERS[self.impute]())]
-
-        if self.variance_filter:
-            steps.append(("variance", VarianceThreshold(threshold=0.0)))
 
         if self.outlier:
             steps.append(

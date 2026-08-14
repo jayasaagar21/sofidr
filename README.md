@@ -13,8 +13,6 @@ Included:
 - Model-ready formation enhancement through `POST /api/enhance`
 - Portable analysis reports through `POST /api/report` (JSON, HTML, PDF, Excel)
 - Formation and terrain reporting
-- Static demos at `/demo.html` and `/client-demo.html`
-- Live upload demo at `/dynamic-demo.html`
 - Data-quality (`dq`) library with tests
 
 Not included:

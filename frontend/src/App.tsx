@@ -211,11 +211,11 @@ export default function App() {
               <button type="button" className="hero-cta" onClick={exploreBenchmark}>
                 Explore Benchmark <span aria-hidden="true">↓</span>
               </button>
-              <span>Follow the four-stage evidence trail</span>
+              <span>Phase 0–2 · SEI ranking · portable reports</span>
             </div>
             <div className="hero-proof" aria-label="SOFIDR methodology">
               <span><strong>6</strong> paper formations</span>
-              <span><strong>4</strong> decision metrics</span>
+              <span><strong>4</strong> SEI metrics</span>
               <span><strong>0</strong> test-fold leakage</span>
             </div>
           </div>
@@ -231,16 +231,9 @@ export default function App() {
           <h2 id="intro-heading">What is SOFIDR?</h2>
           <p>
             SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
-            is an analysis engine for tabular data. It cleans common dataset formats,
-            compares six paper-defined, leak-resistant preprocessing formations on the same
-            cross-validation folds, and ranks strategies with a Strategic Efficiency
-            Index so you can defend the choice with evidence, not guesswork.
-          </p>
-          <p>
-            Upload CSV, TSV, Excel, or JSON for cleaning and enhancement, or explore a
-            prepared benchmark to see how SOFIDR reasons under missing values,
-            imbalance, high dimensionality, and correlated features. Download enhanced
-            datasets and portable reports when you are done.
+            cleans tabular uploads first, then optionally evaluates its fixed strategy
+            for classification: Reconnaissance, Multi-Formation Evaluation, and Iterative
+            Refinement, scored by the Strategic Efficiency Index.
           </p>
         </div>
       </section>
