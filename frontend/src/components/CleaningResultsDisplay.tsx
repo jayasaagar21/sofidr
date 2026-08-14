@@ -93,25 +93,25 @@ export default function CleaningResultsDisplay({
       {profile && sourceFile && (
         <Card className="strategy-action-card">
           <div className="strategy-action-copy">
-            <p className="eyebrow">Optional classification analysis</p>
-            <h3>Evaluate SOFIDR for one outcome label</h3>
+            <p className="eyebrow">Optional next step</p>
+            <h3>Test a category you want to predict</h3>
             <p>
-              Cleaning above already improves <strong>all columns</strong>. This optional
-              step is only for a classification dataset: choose the one complete outcome
-              label to predict. SOFIDR evaluates the remaining eligible columns as features.
+              Cleaning above already improves <strong>all columns</strong>. Use this only
+              when your data has categories you want to predict, such as “approved” or
+              “not approved.” Choose that one category column below.
             </p>
             <div className="target-role-map" aria-label="Classification column roles">
-              <span><b>One class label</b><small>the outcome to predict</small></span>
+              <span><b>One category column</b><small>the result you want to predict</small></span>
               <i aria-hidden="true">→</i>
-              <span><b>All other eligible columns</b><small>features processed by the formation</small></span>
+              <span><b>All other useful columns</b><small>used to help make the prediction</small></span>
             </div>
           </div>
           {targetOptions.length ? (
             <div className="strategy-action-controls">
-              <label htmlFor="target-column">Class label / outcome to predict</label>
-              <p className="control-hint">Choose one complete, discrete field. It is not a feature.</p>
+              <label htmlFor="target-column">Choose the category column</label>
+              <p className="control-hint">Choose one complete column with a small set of categories.</p>
               <select id="target-column" value={targetColumn} onChange={(event) => setTargetColumn(event.target.value)}>
-                <option value="">Choose a suggested class label</option>
+                <option value="">Choose a suggested category</option>
                 {targetOptions.map((column) => (
                   <option key={column.name} value={column.name}>
                     {column.name} · {column.n_unique} classes
@@ -119,13 +119,13 @@ export default function CleaningResultsDisplay({
                 ))}
               </select>
               <Button onClick={() => onRunStrategy(targetColumn)} disabled={!targetColumn || analysisLoading}>
-                {analysisLoading ? "Evaluating 6 formations…" : "Evaluate classification"}
+                {analysisLoading ? "Comparing options…" : "Compare options"}
               </Button>
             </div>
           ) : (
             <p className="strategy-unavailable">
-              No complete discrete class label was inferred. Your all-column enhanced file is
-              ready to download; classification evaluation is not required for cleaning.
+              We could not find a suitable category column. Your improved file is ready to
+              download; this optional comparison is not needed for cleaning.
             </p>
           )}
         </Card>

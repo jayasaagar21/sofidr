@@ -80,12 +80,12 @@ export default function ResultsDisplay({
       </button>
 
       <Card className="results-header">
-        <p className="eyebrow">Analysis complete</p>
+            <p className="eyebrow">Comparison complete</p>
         <div className="header-top">
           <div>
             <h1>{result.dataset_name}</h1>
             <p className="result-subtitle">
-              SOFIDR recommendation for the selected class label: {result.target_column || "benchmark target"}
+              Best way to prepare your data for: {result.target_column || "this example"}
             </p>
           </div>
           <div className="tags">
@@ -100,7 +100,7 @@ export default function ResultsDisplay({
         <div className="formation-hero">
           <div className="formation-icon" aria-hidden="true">{bestFormation.icon}</div>
           <div className="formation-info">
-            <span className="recommendation-label">Recommended formation</span>
+            <span className="recommendation-label">Recommended approach</span>
             <h2>{result.best_by_sei.replace(/_/g, " ")}</h2>
             <p className="target-terrain">{bestFormation.target_terrain}</p>
           </div>
@@ -124,10 +124,10 @@ export default function ResultsDisplay({
         <Card className="journey-card">
           <div className="card-heading">
             <div>
-              <p className="eyebrow">Existing strategy</p>
-              <h3>SOFIDR journey</h3>
+              <p className="eyebrow">How we reached this result</p>
+              <h3>What SOFIDR did</h3>
             </div>
-            <span className="method-note">SOFIDR strategy stages</span>
+            <span className="method-note">Clear, repeatable steps</span>
           </div>
           <ol className="strategy-journey">
             {result.strategy_journey.map((step) => (

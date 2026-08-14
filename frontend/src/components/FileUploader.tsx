@@ -60,10 +60,10 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
   return (
     <div className="file-uploader">
       <div className="panel-heading">
-        <span className="step-number">02</span>
         <div>
-          <h3>Clean and enhance any dataset</h3>
-          <p>Every upload is profiled, repaired, and returned as an enhanced file — no target column required.</p>
+          <p className="option-label">Option 1</p>
+          <h3>Clean and improve your dataset</h3>
+          <p>Upload a file and get a clearer, cleaner version back. You do not need to choose a target column.</p>
         </div>
       </div>
       <div
@@ -93,8 +93,8 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
             />
           </svg>
           </div>
-          <strong>Drop your dataset here</strong>
-          <p>or select a file from your device</p>
+          <strong>Drop your file here</strong>
+          <p>or choose it from your device</p>
           <Button
             onClick={() => inputRef.current?.click()}
             disabled={loading}
@@ -107,10 +107,10 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
       <p className="file-hint" id="file-requirements">
         <span>CSV · TSV · Excel · JSON</span>
         <span>4 MB maximum</span>
-        <span>No target column required</span>
+        <span>No setup required</span>
       </p>
       <p className="file-output-note">
-        Optional next step: if your file has a class label, evaluate SOFIDR’s six paper-defined formations against it.
+        You will see what was improved, then download CSV, Excel, or JSON.
       </p>
       {error && <p className="error-message" role="alert">{error}</p>}
     </div>

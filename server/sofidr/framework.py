@@ -1,9 +1,9 @@
 """
 SOFIDRFramework -- orchestration of the three phases.
 
-  Phase 0  Reconnaissance        terrain.analyze + Algorithm 1 default
-  Phase 1  Multi-formation eval  leak-free SEI for every formation (shared folds)
-  Phase 2  Iterative refinement  perturb data, re-evaluate, switch if >3% better
+  Understand data                terrain.analyze + Algorithm 1 default
+  Compare options                leak-free SEI for every formation (shared folds)
+  Double-check result            perturb data, re-evaluate, switch if >3% better
 
 Selection exposes both:
   * best_by_sei  -- deterministic argmax on this run (the defensible headline)
@@ -90,12 +90,12 @@ class SOFIDRFramework:
         X = np.asarray(X, dtype=float)
         y = np.asarray(y)
 
-        # Phase 0 -- Reconnaissance
+        # Understand the data
         terr = terrain_mod.analyze(X, y)
         cold_default = terrain_mod.default_formation(terr)
         sig = terr.signature()
 
-        # Phase 1 -- Multi-formation evaluation (leak-free, shared folds)
+        # Compare preparation options (leak-free, shared folds)
         results = self._evaluate_all(X, y, terr.minority_count)
         scores = {k: v.sei for k, v in results.items()}
         best_by_sei = max(scores, key=scores.get)
@@ -105,7 +105,7 @@ class SOFIDRFramework:
             if not res.error:
                 self.kb.update(sig, name, res.sei)
 
-        # Phase 2 -- Iterative refinement on perturbed data
+        # Double-check the result on perturbed data
         current = best_by_sei
         log = []
         for i in range(1, self.n_iterations + 1):

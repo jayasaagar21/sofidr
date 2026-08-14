@@ -161,9 +161,9 @@ def research_bundle(best_formation: str) -> dict:
             "title": "SOFIDR: Strategic Optimization Framework for Iterative Data Regeneration",
             "date": "June 2026",
             "phases": [
-                "Phase 0 — Reconnaissance",
-                "Phase 1 — Multi-Formation Evaluation",
-                "Phase 2 — Iterative Refinement",
+                "Understand the data",
+                "Compare options",
+                "Double-check the result",
             ],
             "sei_weights": {
                 "accuracy": 0.40,

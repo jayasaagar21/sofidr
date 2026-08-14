@@ -61,7 +61,7 @@ def test_profile_reports_deterministic_quality_issues_and_override():
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["strategy_context"]["stage"] == "Phase 0 — Reconnaissance"
+    assert body["strategy_context"]["stage"] == "Data check"
     assert body["dataset"]["classification"] == {
         "name": "Transactional",
         "source": "manual override",
@@ -78,7 +78,7 @@ def test_optimize_includes_paper_benchmark_and_research():
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["strategy"] == "SOFIDR"
-    assert body["strategy_journey"][0]["phase"].startswith("Phase 0")
+    assert body["strategy_journey"][0]["phase"] == "Understand the data"
     assert body["benchmark"]["source"] == "SOFIDR paper Section 5.2"
     assert {item["name"] for item in body["benchmark"]["baselines"]} == {
         "none",

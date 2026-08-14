@@ -15,19 +15,19 @@ export default function ArchetypeSelector({
 }: ArchetypeSelectorProps) {
   const labels: Record<string, { title: string; meta: string }> = {
     breast_cancer: { title: "Clinical diagnosis", meta: "Balanced · 30 features" },
-    high_dimensional: { title: "High dimensional", meta: "Feature-heavy terrain" },
-    imbalanced: { title: "Imbalanced classes", meta: "85:15 class split" },
-    noisy_missing: { title: "Missing values", meta: "8% incomplete cells" },
-    correlated: { title: "Correlated features", meta: "20 redundant signals" },
+    high_dimensional: { title: "Many columns", meta: "More columns than usual" },
+    imbalanced: { title: "Uneven categories", meta: "85:15 category split" },
+    noisy_missing: { title: "Missing values", meta: "8% of cells are blank" },
+    correlated: { title: "Similar columns", meta: "20 overlapping signals" },
   }
 
   return (
     <div className="archetype-selector">
       <div className="panel-heading">
-        <span className="step-number">01</span>
         <div>
+          <p className="option-label">Option 2</p>
           <h3>Explore a benchmark</h3>
-          <p>Run a prepared dataset to see how SOFIDR reasons.</p>
+          <p>Try a prepared example to see what SOFIDR finds and improves.</p>
         </div>
       </div>
       <div className="archetype-grid">
@@ -39,7 +39,7 @@ export default function ArchetypeSelector({
             className="card archetype-card"
             onClick={() => onSelect(key)}
             disabled={loading}
-            aria-label={`Run ${labels[key]?.title || key.replace(/_/g, " ")} analysis`}
+            aria-label={`Explore ${labels[key]?.title || key.replace(/_/g, " ")} example`}
           >
             <span className="archetype-meta">{labels[key]?.meta || "Benchmark dataset"}</span>
             <h4>{labels[key]?.title || key.replace(/_/g, " ")}</h4>

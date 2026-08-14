@@ -3,13 +3,13 @@ sofidr.dq.plan — the estimated half of cleaning, as an UNFITTED transformer.
 
 Why this exists
 ---------------
-Phase 1's one real correctness achievement was passing a Pipeline into
-cross_val_score, so preprocessing is re-fit on each training fold. If Phase 2
-hands Phase 1 an already-imputed, already-scaled matrix, that achievement is
+The evaluation engine's one real correctness achievement was passing a Pipeline into
+cross_val_score, so preprocessing is re-fit on each training fold. If human-facing cleaning
+hands the evaluation engine an already-imputed, already-scaled matrix, that achievement is
 void: the imputation means were computed with the test folds in the room, and
 no amount of care downstream can un-ring that bell.
 
-So Phase 2 emits a *plan*, not a matrix. Phase 1 does:
+So human-facing cleaning emits a *plan*, not a matrix. The evaluation engine does:
 
     pipe = Pipeline([("clean", plan.to_transformer()), ("model", clf)])
     cross_val_score(pipe, X, y, cv=cv)          # fit per fold. No leak.
@@ -92,7 +92,7 @@ class CleaningPlan:
 
     # ---- the leak barrier ------------------------------------------------
     def to_transformer(self) -> ColumnTransformer:
-        """UNFITTED. Hand this to Phase 1; it fits inside each CV fold."""
+        """UNFITTED. Hand this to model evaluation; it fits inside each CV fold."""
         num, cat = self.numeric, self.categorical
         blocks = []
 
@@ -212,6 +212,6 @@ def export_for_human(df: pd.DataFrame, plan: CleaningPlan) -> tuple[pd.DataFrame
         "Imputation values here were computed from ALL rows in this file. "
         "That is correct for inspection and reporting. It is NOT valid input to "
         "cross-validation or model selection — for that, pass the CleaningPlan "
-        "to Phase 1 and let it fit per fold."
+        "to model evaluation and let it fit per fold."
     )
     return out, warn

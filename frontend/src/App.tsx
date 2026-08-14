@@ -94,7 +94,7 @@ export default function App() {
       profile: null,
     }))
     try {
-      // Profiling measures Phase 0 conditions without changing the dataset.
+      // Profiling measures dataset conditions without changing the dataset.
       // The human-cleaning artifact remains a separate, explicit output.
       const [profile, cleaning] = await Promise.all([
         api.profile(file),
@@ -197,35 +197,34 @@ export default function App() {
           </div>
         </nav>
         <div className="hero">
-          <p className="eyebrow">Classification preprocessing intelligence</p>
-          <h1>Choose a data strategy<br />you can defend.</h1>
+          <p className="eyebrow">Make your data easier to use</p>
+          <h1>Start with cleaner data.<br />Make better decisions.</h1>
           <p className="tagline">
-            Compare six paper-defined, leak-resistant preprocessing formations against the same
-            cross-validation folds. Get a ranked recommendation in seconds.
+            Upload a spreadsheet to find and fix common data problems. If your data
+            includes categories to predict, SOFIDR can also compare the best ways to prepare it.
           </p>
           <div className="hero-actions">
             <button type="button" className="hero-cta" onClick={exploreBenchmark}>
-              Explore Benchmark <span aria-hidden="true">↓</span>
+              See an example <span aria-hidden="true">↓</span>
             </button>
-            <span>SEI ranking · portable reports</span>
+            <span>Clear results · downloadable files</span>
           </div>
           <div className="hero-proof" aria-label="SOFIDR methodology">
-            <span><strong>6</strong> paper formations</span>
-            <span><strong>4</strong> SEI metrics</span>
-            <span><strong>0</strong> test-fold leakage</span>
+            <span><strong>CSV, Excel & JSON</strong> supported</span>
+            <span><strong>Your file</strong> stays in this session</span>
+            <span><strong>Clear results</strong> at every step</span>
           </div>
         </div>
       </header>
 
       <section className="intro" aria-labelledby="intro-heading">
         <div className="intro-inner">
-          <p className="eyebrow">Introduction</p>
-          <h2 id="intro-heading">What is SOFIDR?</h2>
+          <p className="eyebrow">How it helps</p>
+          <h2 id="intro-heading">Better data, without the guesswork.</h2>
           <p>
             SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
-            cleans tabular uploads first, then optionally evaluates its fixed strategy
-            for classification: reconnaissance, formation comparison, and iterative
-            refinement, scored by the Strategic Efficiency Index.
+            helps you understand, clean, and improve your data. It shows what it found,
+            what changed, and gives you a ready-to-download result.
           </p>
         </div>
       </section>
@@ -260,23 +259,23 @@ export default function App() {
           <div className="input-section">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Start processing</p>
-                <h2>Bring any common dataset or explore a terrain.</h2>
+                <p className="eyebrow">Start here</p>
+                <h2>Choose what you want to do.</h2>
               </div>
               <p>
-                Your upload is processed for this request only. Every file is cleaned
-                and returned as an enhanced CSV, Excel, or JSON download.
+                Start with your own file to clean and improve it, or try a prepared
+                example to see how SOFIDR works before uploading anything.
               </p>
             </div>
             <div className="input-container">
+              <FileUploader loading={state.loading} onUpload={handleFileUpload} />
+              <div className="divider" aria-hidden="true"><span>or try an example</span></div>
               <ArchetypeSelector
                 archetypes={state.archetypes}
                 loading={state.loading}
                 onSelect={handleArchetypeSelect}
                 firstButtonRef={benchmarkButtonRef}
               />
-              <div className="divider" aria-hidden="true"><span>or</span></div>
-              <FileUploader loading={state.loading} onUpload={handleFileUpload} />
             </div>
 
             {state.error && <div className="error-message" role="alert">{state.error}</div>}

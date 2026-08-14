@@ -15,8 +15,8 @@ export default function DatasetProfileDisplay({ profile }: DatasetProfileDisplay
     <section className="dataset-profile" aria-labelledby="profile-heading">
       <div className="analysis-section-heading">
         <div>
-          <p className="eyebrow">Dataset intelligence</p>
-          <h2 id="profile-heading">Scan before strategy</h2>
+          <p className="eyebrow">Your data at a glance</p>
+          <h2 id="profile-heading">What we found</h2>
           <p>{profile.strategy_context.detail}</p>
         </div>
         <span className="quality-badge" title={profile.quality.method}>

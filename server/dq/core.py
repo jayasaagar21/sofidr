@@ -4,7 +4,7 @@ sofidr.dq — data quality layer, rebuilt.
 THE CENTRAL DISTINCTION the previous version lacked
 ---------------------------------------------------
 Cleaning operations split into two kinds, and conflating them is what
-caused Phase 2 to leak into Phase 1's cross-validation:
+caused human-facing cleaning to leak into cross-validation:
 
   STRUCTURAL  — deterministic, estimates nothing from the data distribution.
                 Parsing "05880" as text. Trimming whitespace. Dropping an
@@ -13,13 +13,13 @@ caused Phase 2 to leak into Phase 1's cross-validation:
 
   ESTIMATED   — learns parameters from the rows it sees (a mean, a quantile,
                 a category list, a scale). MUST be re-fit inside every CV
-                fold. Applying it to the full dataset before Phase 1 bakes
+                fold. Applying it to the full dataset before model evaluation bakes
                 test-fold information into the training data permanently.
 
-So this module never returns "cleaned data" to Phase 1. It returns:
+So this module never returns "cleaned data" to model evaluation. It returns:
   1. a structurally-repaired frame (safe, deterministic), and
   2. an UNFITTED sklearn transformer describing the estimated steps,
-     which Phase 1 drops inside its Pipeline and fits per fold.
+     which model evaluation drops inside its Pipeline and fits per fold.
 
 Export-for-humans is a separate, explicitly-labelled path.
 

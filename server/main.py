@@ -269,7 +269,7 @@ async def profile_dataset(
     file: UploadFile = File(...),
     dataset_type: Optional[str] = Query(None, max_length=80),
 ):
-    """Measure dataset conditions before SOFIDR Phase 0 reconnaissance.
+    """Measure dataset conditions before SOFIDR compares preparation options.
 
     This endpoint only profiles input data. It does not alter the dataset,
     choose a formation, or run any token-metered model.
@@ -287,8 +287,8 @@ async def profile_dataset(
         "source_format": os.path.splitext(file.filename or "")[1].lstrip(".").lower() or "unknown",
         "parsing_steps": parsing_steps,
         "strategy_context": {
-            "stage": "Phase 0 — Reconnaissance",
-            "detail": "Dataset conditions are measured before SOFIDR evaluates its existing formations.",
+            "stage": "Data check",
+            "detail": "SOFIDR reviews the file before comparing ways to prepare classification data.",
         },
     }
 
@@ -387,36 +387,36 @@ async def optimize(
 
         strategy_journey = [
             {
-                "phase": "Phase 0 — Reconnaissance",
+                "phase": "Understand the data",
                 "status": "complete",
                 "detail": (
-                    f"Terrain tags: {', '.join(result.terrain.tags())}. "
-                    f"Algorithm 1 cold-start default: {result.cold_start_default}."
+                    f"SOFIDR found: {', '.join(result.terrain.tags())}. "
+                    f"Starting point: {result.cold_start_default}."
                 ),
             },
             {
-                "phase": "Phase 1 — Multi-Formation Evaluation",
+                "phase": "Compare the options",
                 "status": "complete",
                 "detail": (
-                    f"Evaluated {len(scoreboard)} formations on shared stratified folds. "
-                    f"Deterministic best by SEI: {result.best_by_sei} ({sofidr_sei})."
+                    f"Compared {len(scoreboard)} ways to prepare the data under the same conditions. "
+                    f"Best overall result: {result.best_by_sei} ({sofidr_sei})."
                 ),
             },
             {
-                "phase": "Phase 2 — Iterative Refinement",
+                "phase": "Double-check the result",
                 "status": "complete" if result.refinement_log else "skipped",
                 "detail": (
-                    f"{len(result.refinement_log)} refinement iteration(s) completed."
+                    f"{len(result.refinement_log)} reliability check(s) completed."
                     if result.refinement_log
-                    else "Skipped for this run (iterations=0). Initial SEI ranking retained."
+                    else "Skipped for this run. The first comparison result was kept."
                 ),
             },
             {
-                "phase": "Formation recommendation",
+                "phase": "Recommendation",
                 "status": "complete",
                 "detail": (
-                    f"best_by_sei={result.best_by_sei}; "
-                    f"bandit selected={result.selected} ({result.selection_reason})."
+                    f"Recommended option: {result.best_by_sei}. "
+                    f"{result.selection_reason}"
                 ),
             },
         ]

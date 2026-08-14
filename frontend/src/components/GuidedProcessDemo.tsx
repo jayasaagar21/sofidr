@@ -3,36 +3,36 @@ import { Button } from "./ui/Button"
 
 const stages = [
   {
-    title: "Reconnaissance",
-    label: "Map the terrain",
+    title: "Understand your data",
+    label: "See what needs attention",
     description:
-      "SOFIDR profiles dimensionality, missingness, class balance, and feature correlation before any formation is applied.",
-    signal: "Terrain profile",
-    value: "Cold-start default",
+      "SOFIDR checks your file for blanks, duplicates, unusual values, and columns that may need attention.",
+    signal: "Data check",
+    value: "Clear overview",
   },
   {
-    title: "Multi-formation evaluation",
-    label: "Compare formations",
+    title: "Compare the options",
+    label: "Test what fits best",
     description:
-      "The six paper-defined formations are scored with the Strategic Efficiency Index on the same stratified folds.",
-    signal: "Controlled trial",
-    value: "Shared 3-fold SEI",
+      "For classification data, SOFIDR compares six proven ways to prepare the data under the same conditions.",
+    signal: "Fair comparison",
+    value: "6 approaches",
   },
   {
-    title: "Iterative refinement",
-    label: "Stress the choice",
+    title: "Double-check the result",
+    label: "Choose with confidence",
     description:
-      "Controlled perturbations re-check robustness. A switch occurs only if an alternative beats the current SEI by more than 3%.",
-    signal: "Adaptation rule",
-    value: "Switch if >3% better",
+      "SOFIDR checks that the recommended option stays reliable when the data changes slightly.",
+    signal: "Reliability check",
+    value: "Checked twice",
   },
   {
-    title: "Recommendation & enhancement",
-    label: "Defendable output",
+    title: "Download your result",
+    label: "Keep moving",
     description:
-      "best_by_sei is the deterministic recommendation. For uploads, that formation can then produce a model-ready export.",
-    signal: "Final artifact",
-    value: "Formation + report",
+      "Review what changed, download an improved file, and save a report when you need one.",
+    signal: "Ready to use",
+    value: "File + report",
   },
 ]
 
@@ -65,18 +65,18 @@ export default function GuidedProcessDemo({
       aria-labelledby="process-title"
     >
       <div className="process-intro">
-        <p className="eyebrow">Guided process demo</p>
+        <p className="eyebrow">How it works</p>
         <h2 id="process-title" ref={headingRef} tabIndex={-1}>
-          See how SOFIDR applies its strategy.
+          From uploaded file to useful result.
         </h2>
         <p>
-          SOFIDR is fixed. What changes by dataset is terrain, formation ranking,
-          technique mix inside that formation, and the measured outcome.
+          SOFIDR explains each step in plain language, so you can see what happened
+          to your data and why.
         </p>
       </div>
 
       <div className="process-shell">
-        <ol className="process-steps" aria-label="SOFIDR process stages">
+        <ol className="process-steps" aria-label="How SOFIDR works">
           {stages.map((item, index) => (
             <li key={item.title}>
               <button
@@ -116,11 +116,11 @@ export default function GuidedProcessDemo({
               )}
               {stage < stages.length - 1 ? (
                 <Button onClick={() => selectStage(stage + 1)}>
-                  Next stage <span aria-hidden="true">→</span>
+                  Next <span aria-hidden="true">→</span>
                 </Button>
               ) : (
                 <Button onClick={onChooseBenchmark}>
-                  Choose a benchmark <span aria-hidden="true">↓</span>
+                  Try an example <span aria-hidden="true">↓</span>
                 </Button>
               )}
             </div>

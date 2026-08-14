@@ -128,7 +128,7 @@ def test_plan_adds_missingness_indicator(raw):
 
 
 def test_transformer_is_unfitted():
-    """The whole point: Phase 1 must receive something it fits itself."""
+    """The whole point: model evaluation must receive something it fits itself."""
     from sklearn.exceptions import NotFittedError
     from sklearn.utils.validation import check_is_fitted
     df = pd.DataFrame({"a": [1.0, 2, 3, 4], "y": [0, 1, 0, 1]})

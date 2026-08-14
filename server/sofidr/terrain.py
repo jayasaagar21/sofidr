@@ -1,5 +1,5 @@
 """
-Phase 0 -- Reconnaissance: characterize the data 'terrain'.
+Data check: characterize the dataset before comparison.
 
 This computes the full terrain vector the paper's Definition 1 / Algorithm 1
 refer to, including mean absolute feature correlation, which the original

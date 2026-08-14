@@ -207,23 +207,20 @@ a:focus-visible {
 }
 
 .panel-heading {
-  display: flex;
-  gap: 1rem;
-  min-height: 58px;
   margin-bottom: 1.5rem;
 }
 
-.step-number {
-  display: grid;
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 50%;
+.option-label {
+  display: inline-flex;
+  margin-bottom: .45rem !important;
+  padding: .24rem .48rem;
+  border: 1px solid rgba(201, 247, 111, .3);
+  border-radius: 999px;
   color: var(--acid);
-  font-size: .72rem;
+  font-size: .62rem !important;
   font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 
 .panel-heading h3 {

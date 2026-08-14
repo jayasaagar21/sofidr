@@ -1,4 +1,4 @@
-"""Deterministic dataset intelligence used before SOFIDR Phase 0.
+"""Deterministic dataset intelligence used before SOFIDR comparison.
 
 This module measures a dataset; it does not select or replace a SOFIDR
 formation. Its findings are inputs to SOFIDR reconnaissance and are kept
