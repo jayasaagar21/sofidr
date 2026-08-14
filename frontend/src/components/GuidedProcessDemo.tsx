@@ -14,7 +14,7 @@ const stages = [
     title: "Multi-formation evaluation",
     label: "Phase 1 — Compare formations",
     description:
-      "Paper formations and registered extras are scored with the Strategic Efficiency Index on the same stratified folds.",
+      "The six paper-defined formations are scored with the Strategic Efficiency Index on the same stratified folds.",
     signal: "Controlled trial",
     value: "Shared 3-fold SEI",
   },

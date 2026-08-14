@@ -23,11 +23,7 @@ Key correctness decisions vs. the original prototype:
    guerrilla was identical to reconnaissance up to floating-point noise).
 
 Formation provenance:
-- The six core formations (phalanx, skirmisher, heavy_cavalry, guerrilla,
-  scorched_earth, reconnaissance) match the SOFIDR paper, Table 1.
-- `siege` and `diplomat` are two extra formations defined only in the assistant
-  system prompt (not the paper or the original code). They are implemented here
-  and clearly flagged so the toolset and the engine agree.
+- The six formations below match the SOFIDR paper, Table 1.
 """
 
 from __future__ import annotations
@@ -276,21 +272,12 @@ FORMATIONS: dict[str, Formation] = {
     "reconnaissance": Formation(
         "reconnaissance", "mean", None, None, False, False, None,
         target_terrain="Clean data, minimal intervention", icon="🔭"),
-    # ---- extras defined only in the system prompt (not the paper) ---- #
-    "siege": Formation(
-        "siege", "knn", "minmax", None, False, False, None,
-        variance_filter=True,
-        target_terrain="Complex missing patterns, structured data",
-        paper=False, icon="🏰"),
-    "diplomat": Formation(
-        "diplomat", "iterative", "standard", None, False, False, None,
-        target_terrain="Features with complex interdependencies",
-        paper=False, icon="🕊️"),
 }
 
 
-def get_all(include_extras: bool = True) -> list[str]:
-    return [n for n, f in FORMATIONS.items() if include_extras or f.paper]
+def get_all() -> list[str]:
+    """Return the six paper-defined SOFIDR formations."""
+    return list(FORMATIONS)
 
 
 def describe(name: str) -> Formation:

@@ -299,7 +299,7 @@ async def optimize(
     target_column: Optional[str] = Query(None),
     file: Optional[UploadFile] = File(None),
     model: str = Query("rf", pattern="^(rf|logreg)$"),
-    iterations: int = Query(0, ge=0, le=1),
+    iterations: int = Query(1, ge=0, le=1),
     epsilon: float = Query(0.15, ge=0.0, le=1.0),
 ):
     """Optimize preprocessing for a dataset.

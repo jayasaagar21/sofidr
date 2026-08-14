@@ -53,7 +53,6 @@ class SOFIDRFramework:
         self,
         n_iterations: int = 3,
         epsilon: float = 0.15,
-        include_extras: bool = True,
         base_estimator=None,
         cv_folds: int = 3,
         knowledge: Optional[KnowledgeBase] = None,
@@ -62,7 +61,7 @@ class SOFIDRFramework:
     ):
         self.n_iterations = n_iterations
         self.epsilon = epsilon
-        self.candidates = get_all(include_extras=include_extras)
+        self.candidates = get_all()
         self.base_estimator = (
             base_estimator if base_estimator is not None
             else RandomForestClassifier(n_estimators=50, random_state=random_state)

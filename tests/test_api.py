@@ -36,7 +36,14 @@ def test_metadata_endpoints_are_populated():
     assert archetypes.status_code == 200
     assert "breast_cancer" in archetypes.json()["archetypes"]
     assert formations.status_code == 200
-    assert {"phalanx", "guerrilla", "reconnaissance"} <= set(formations.json())
+    assert set(formations.json()) == {
+        "phalanx",
+        "skirmisher",
+        "heavy_cavalry",
+        "guerrilla",
+        "scorched_earth",
+        "reconnaissance",
+    }
 
 
 def test_profile_reports_deterministic_quality_issues_and_override():
@@ -99,7 +106,7 @@ def test_research_endpoint_returns_paper_mappings():
     body = response.json()
     assert body["success"] is True
     assert body["best_by_sei"]
-    assert len(body["scoreboard"]) == 8
+    assert len(body["scoreboard"]) == 6
 
 
 def test_upload_rejects_continuous_target():

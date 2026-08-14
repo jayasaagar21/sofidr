@@ -201,7 +201,7 @@ export default function App() {
           <p className="eyebrow">Classification preprocessing intelligence</p>
           <h1>Choose a data strategy<br />you can defend.</h1>
           <p className="tagline">
-            Compare eight leak-resistant preprocessing formations against the same
+            Compare six paper-defined, leak-resistant preprocessing formations against the same
             cross-validation folds. Get a ranked recommendation in seconds.
           </p>
           <div className="hero-actions">
@@ -225,7 +225,7 @@ export default function App() {
           <p>
             SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
             is an analysis engine for tabular data. It cleans common dataset formats,
-            compares eight leak-resistant preprocessing formations on the same
+            compares six paper-defined, leak-resistant preprocessing formations on the same
             cross-validation folds, and ranks strategies with a Strategic Efficiency
             Index so you can defend the choice with evidence, not guesswork.
           </p>
