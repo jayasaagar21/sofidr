@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useMemo, useState } from "react"
 import { api, CleanResponse, DataExportFormat, DatasetProfile } from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
@@ -27,7 +27,16 @@ export default function CleaningResultsDisplay({
 }: CleaningResultsDisplayProps) {
   const [exportLoading, setExportLoading] = useState<DataExportFormat | null>(null)
   const [exportError, setExportError] = useState("")
-  const [targetColumn, setTargetColumn] = useState(profile?.dataset.potential_target_fields[0] || "")
+  const targetOptions = useMemo(() => {
+    if (!profile) return []
+    const byName = new Map(profile.columns.map((column) => [column.name, column]))
+    return profile.dataset.potential_target_fields
+      .map((name) => byName.get(name))
+      .filter((column): column is NonNullable<typeof column> =>
+        Boolean(column && column.n_missing === 0 && column.n_unique >= 2)
+      )
+  }, [profile])
+  const [targetColumn, setTargetColumn] = useState("")
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
@@ -83,27 +92,42 @@ export default function CleaningResultsDisplay({
 
       {profile && sourceFile && (
         <Card className="strategy-action-card">
-          <div>
-            <p className="eyebrow">Continue with SOFIDR</p>
-            <h3>Evaluate formations for a classification target</h3>
+          <div className="strategy-action-copy">
+            <p className="eyebrow">Optional classification analysis</p>
+            <h3>Evaluate SOFIDR for one outcome label</h3>
             <p>
-              This runs the existing Phase 0–2 SOFIDR evaluation on the original upload.
-              Cleaning above is a separate human-facing artifact and is never used to leak
-              information across validation folds.
+              Cleaning above already improves <strong>all columns</strong>. This optional
+              step is only for a classification dataset: choose the one complete outcome
+              label to predict. SOFIDR evaluates the remaining eligible columns as features.
             </p>
+            <div className="target-role-map" aria-label="Classification column roles">
+              <span><b>One class label</b><small>the outcome to predict</small></span>
+              <i aria-hidden="true">→</i>
+              <span><b>All other eligible columns</b><small>features processed by the formation</small></span>
+            </div>
           </div>
-          <div className="strategy-action-controls">
-            <label htmlFor="target-column">Target field</label>
-            <select id="target-column" value={targetColumn} onChange={(event) => setTargetColumn(event.target.value)}>
-              <option value="">Select a target field</option>
-              {profile.columns
-                .filter((column) => !["identifier", "empty", "constant", "text"].includes(column.role))
-                .map((column) => <option key={column.name} value={column.name}>{column.name}</option>)}
-            </select>
-            <Button onClick={() => onRunStrategy(targetColumn)} disabled={!targetColumn || analysisLoading}>
-              {analysisLoading ? "Evaluating formations…" : "Apply SOFIDR strategy"}
-            </Button>
-          </div>
+          {targetOptions.length ? (
+            <div className="strategy-action-controls">
+              <label htmlFor="target-column">Class label / outcome to predict</label>
+              <p className="control-hint">Choose one complete, discrete field. It is not a feature.</p>
+              <select id="target-column" value={targetColumn} onChange={(event) => setTargetColumn(event.target.value)}>
+                <option value="">Choose a suggested class label</option>
+                {targetOptions.map((column) => (
+                  <option key={column.name} value={column.name}>
+                    {column.name} · {column.n_unique} classes
+                  </option>
+                ))}
+              </select>
+              <Button onClick={() => onRunStrategy(targetColumn)} disabled={!targetColumn || analysisLoading}>
+                {analysisLoading ? "Evaluating 6 formations…" : "Evaluate classification"}
+              </Button>
+            </div>
+          ) : (
+            <p className="strategy-unavailable">
+              No complete discrete class label was inferred. Your all-column enhanced file is
+              ready to download; classification evaluation is not required for cleaning.
+            </p>
+          )}
         </Card>
       )}
       {analysisError && <p className="report-export-error" role="alert">{analysisError}</p>}

@@ -63,7 +63,7 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
         <span className="step-number">02</span>
         <div>
           <h3>Clean and enhance any dataset</h3>
-          <p>Every upload goes through SOFIDR cleaning and returns an enhanced file.</p>
+          <p>Every upload is profiled, repaired, and returned as an enhanced file — no target column required.</p>
         </div>
       </div>
       <div
@@ -110,7 +110,7 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
         <span>No target column required</span>
       </p>
       <p className="file-output-note">
-        SOFIDR repairs structure and common field issues, then returns enhanced CSV, Excel, and JSON downloads.
+        Optional next step: if your file has a class label, evaluate SOFIDR’s six paper-defined formations against it.
       </p>
       {error && <p className="error-message" role="alert">{error}</p>}
     </div>

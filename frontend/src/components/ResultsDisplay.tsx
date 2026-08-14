@@ -84,7 +84,9 @@ export default function ResultsDisplay({
         <div className="header-top">
           <div>
             <h1>{result.dataset_name}</h1>
-            <p className="result-subtitle">Recommended preprocessing formation</p>
+            <p className="result-subtitle">
+              SOFIDR recommendation for the selected class label: {result.target_column || "benchmark target"}
+            </p>
           </div>
           <div className="tags">
             {result.terrain_tags.map((tag) => (
@@ -98,7 +100,7 @@ export default function ResultsDisplay({
         <div className="formation-hero">
           <div className="formation-icon" aria-hidden="true">{bestFormation.icon}</div>
           <div className="formation-info">
-            <span className="recommendation-label">Best strategic fit</span>
+            <span className="recommendation-label">Recommended formation</span>
             <h2>{result.best_by_sei.replace(/_/g, " ")}</h2>
             <p className="target-terrain">{bestFormation.target_terrain}</p>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { lazy, Suspense, useState, useEffect, useRef } from "react"
 import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse, DatasetProfile } from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
@@ -7,6 +7,8 @@ import GuidedProcessDemo from "./components/GuidedProcessDemo"
 import AnalysisProgress from "./components/AnalysisProgress"
 import CleaningResultsDisplay from "./components/CleaningResultsDisplay"
 import "./App.css"
+
+const HeroTerrain = lazy(() => import("./components/HeroTerrain"))
 
 interface AppState {
   loading: boolean
@@ -198,23 +200,28 @@ export default function App() {
           </div>
         </nav>
         <div className="hero">
-          <p className="eyebrow">Classification preprocessing intelligence</p>
-          <h1>Choose a data strategy<br />you can defend.</h1>
-          <p className="tagline">
-            Compare six paper-defined, leak-resistant preprocessing formations against the same
-            cross-validation folds. Get a ranked recommendation in seconds.
-          </p>
-          <div className="hero-actions">
-            <button type="button" className="hero-cta" onClick={exploreBenchmark}>
-              Explore Benchmark <span aria-hidden="true">↓</span>
-            </button>
-            <span>Follow the four-stage evidence trail</span>
+          <div className="hero-copy">
+            <p className="eyebrow">Classification preprocessing intelligence</p>
+            <h1>Choose a data strategy<br />you can defend.</h1>
+            <p className="tagline">
+              Compare six paper-defined, leak-resistant preprocessing formations against the same
+              cross-validation folds. Get a ranked recommendation in seconds.
+            </p>
+            <div className="hero-actions">
+              <button type="button" className="hero-cta" onClick={exploreBenchmark}>
+                Explore Benchmark <span aria-hidden="true">↓</span>
+              </button>
+              <span>Follow the four-stage evidence trail</span>
+            </div>
+            <div className="hero-proof" aria-label="SOFIDR methodology">
+              <span><strong>6</strong> paper formations</span>
+              <span><strong>4</strong> decision metrics</span>
+              <span><strong>0</strong> test-fold leakage</span>
+            </div>
           </div>
-          <div className="hero-proof" aria-label="SOFIDR methodology">
-            <span><strong>8</strong> formations</span>
-            <span><strong>4</strong> decision metrics</span>
-            <span><strong>0</strong> test-fold leakage</span>
-          </div>
+          <Suspense fallback={<div className="hero-terrain hero-terrain-fallback" aria-hidden="true" />}>
+            <HeroTerrain />
+          </Suspense>
         </div>
       </header>
 
