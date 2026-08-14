@@ -4,15 +4,15 @@ import { Button } from "./ui/Button"
 const stages = [
   {
     title: "Reconnaissance",
-    label: "Phase 0 — Map the terrain",
+    label: "Map the terrain",
     description:
       "SOFIDR profiles dimensionality, missingness, class balance, and feature correlation before any formation is applied.",
     signal: "Terrain profile",
-    value: "Algorithm 1 cold-start",
+    value: "Cold-start default",
   },
   {
     title: "Multi-formation evaluation",
-    label: "Phase 1 — Compare formations",
+    label: "Compare formations",
     description:
       "The six paper-defined formations are scored with the Strategic Efficiency Index on the same stratified folds.",
     signal: "Controlled trial",
@@ -20,7 +20,7 @@ const stages = [
   },
   {
     title: "Iterative refinement",
-    label: "Phase 2 — Stress the choice",
+    label: "Stress the choice",
     description:
       "Controlled perturbations re-check robustness. A switch occurs only if an alternative beats the current SEI by more than 3%.",
     signal: "Adaptation rule",

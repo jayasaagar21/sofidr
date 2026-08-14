@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse, DatasetProfile } from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
@@ -7,9 +7,6 @@ import GuidedProcessDemo from "./components/GuidedProcessDemo"
 import AnalysisProgress from "./components/AnalysisProgress"
 import CleaningResultsDisplay from "./components/CleaningResultsDisplay"
 import "./App.css"
-
-const HeroTerrain = lazy(() => import("./components/HeroTerrain"))
-
 interface AppState {
   loading: boolean
   error: string
@@ -200,28 +197,23 @@ export default function App() {
           </div>
         </nav>
         <div className="hero">
-          <div className="hero-copy">
-            <p className="eyebrow">Classification preprocessing intelligence</p>
-            <h1>Choose a data strategy<br />you can defend.</h1>
-            <p className="tagline">
-              Compare six paper-defined, leak-resistant preprocessing formations against the same
-              cross-validation folds. Get a ranked recommendation in seconds.
-            </p>
-            <div className="hero-actions">
-              <button type="button" className="hero-cta" onClick={exploreBenchmark}>
-                Explore Benchmark <span aria-hidden="true">↓</span>
-              </button>
-              <span>Phase 0–2 · SEI ranking · portable reports</span>
-            </div>
-            <div className="hero-proof" aria-label="SOFIDR methodology">
-              <span><strong>6</strong> paper formations</span>
-              <span><strong>4</strong> SEI metrics</span>
-              <span><strong>0</strong> test-fold leakage</span>
-            </div>
+          <p className="eyebrow">Classification preprocessing intelligence</p>
+          <h1>Choose a data strategy<br />you can defend.</h1>
+          <p className="tagline">
+            Compare six paper-defined, leak-resistant preprocessing formations against the same
+            cross-validation folds. Get a ranked recommendation in seconds.
+          </p>
+          <div className="hero-actions">
+            <button type="button" className="hero-cta" onClick={exploreBenchmark}>
+              Explore Benchmark <span aria-hidden="true">↓</span>
+            </button>
+            <span>SEI ranking · portable reports</span>
           </div>
-          <Suspense fallback={<div className="hero-terrain hero-terrain-fallback" aria-hidden="true" />}>
-            <HeroTerrain />
-          </Suspense>
+          <div className="hero-proof" aria-label="SOFIDR methodology">
+            <span><strong>6</strong> paper formations</span>
+            <span><strong>4</strong> SEI metrics</span>
+            <span><strong>0</strong> test-fold leakage</span>
+          </div>
         </div>
       </header>
 
@@ -232,8 +224,8 @@ export default function App() {
           <p>
             SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
             cleans tabular uploads first, then optionally evaluates its fixed strategy
-            for classification: Reconnaissance, Multi-Formation Evaluation, and Iterative
-            Refinement, scored by the Strategic Efficiency Index.
+            for classification: reconnaissance, formation comparison, and iterative
+            refinement, scored by the Strategic Efficiency Index.
           </p>
         </div>
       </section>

@@ -127,7 +127,7 @@ export default function ResultsDisplay({
               <p className="eyebrow">Existing strategy</p>
               <h3>SOFIDR journey</h3>
             </div>
-            <span className="method-note">Paper phases 0–2</span>
+            <span className="method-note">SOFIDR strategy stages</span>
           </div>
           <ol className="strategy-journey">
             {result.strategy_journey.map((step) => (
