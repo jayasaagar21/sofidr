@@ -9,6 +9,9 @@ interface CleaningResultsDisplayProps {
   sourceFile: File | null
   sourceName: string
   profile: DatasetProfile | null
+  analysisLoading: boolean
+  analysisError: string
+  onRunStrategy: (targetColumn: string) => void
   onReset: () => void
 }
 
@@ -17,10 +20,14 @@ export default function CleaningResultsDisplay({
   sourceFile,
   sourceName,
   profile,
+  analysisLoading,
+  analysisError,
+  onRunStrategy,
   onReset,
 }: CleaningResultsDisplayProps) {
   const [exportLoading, setExportLoading] = useState<DataExportFormat | null>(null)
   const [exportError, setExportError] = useState("")
+  const [targetColumn, setTargetColumn] = useState(profile?.dataset.potential_target_fields[0] || "")
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
@@ -73,6 +80,33 @@ export default function CleaningResultsDisplay({
       </Card>
 
       {profile && <DatasetProfileDisplay profile={profile} />}
+
+      {profile && sourceFile && (
+        <Card className="strategy-action-card">
+          <div>
+            <p className="eyebrow">Continue with SOFIDR</p>
+            <h3>Evaluate formations for a classification target</h3>
+            <p>
+              This runs the existing Phase 0–2 SOFIDR evaluation on the original upload.
+              Cleaning above is a separate human-facing artifact and is never used to leak
+              information across validation folds.
+            </p>
+          </div>
+          <div className="strategy-action-controls">
+            <label htmlFor="target-column">Target field</label>
+            <select id="target-column" value={targetColumn} onChange={(event) => setTargetColumn(event.target.value)}>
+              <option value="">Select a target field</option>
+              {profile.columns
+                .filter((column) => !["identifier", "empty", "constant", "text"].includes(column.role))
+                .map((column) => <option key={column.name} value={column.name}>{column.name}</option>)}
+            </select>
+            <Button onClick={() => onRunStrategy(targetColumn)} disabled={!targetColumn || analysisLoading}>
+              {analysisLoading ? "Evaluating formations…" : "Apply SOFIDR strategy"}
+            </Button>
+          </div>
+        </Card>
+      )}
+      {analysisError && <p className="report-export-error" role="alert">{analysisError}</p>}
 
       <Card className="enhancement-card">
         <div className="enhancement-heading">

@@ -115,6 +115,41 @@ export default function App() {
     }
   }
 
+  const handleUploadedStrategy = async (targetColumn: string) => {
+    if (!state.sourceFile) return
+    setState((s) => ({
+      ...s,
+      loading: true,
+      error: "",
+      result: null,
+      enhancement: null,
+      enhancementError: "",
+    }))
+    try {
+      const result = await api.optimize({ file: state.sourceFile, target_column: targetColumn })
+      setState((s) => ({ ...s, result, loading: false }))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "SOFIDR could not evaluate this target"
+      setState((s) => ({ ...s, error: message, loading: false }))
+    }
+  }
+
+  const handleApplyRecommendation = async () => {
+    if (!state.sourceFile || !state.result) return
+    setState((s) => ({ ...s, enhancementLoading: true, enhancementError: "" }))
+    try {
+      const enhancement = await api.enhance(
+        state.sourceFile,
+        state.result.best_by_sei,
+        state.result.target_column,
+      )
+      setState((s) => ({ ...s, enhancement, enhancementLoading: false }))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "SOFIDR could not apply the recommended formation"
+      setState((s) => ({ ...s, enhancementError: message, enhancementLoading: false }))
+    }
+  }
+
   const exploreBenchmark = () => {
     setDemoActive(true)
     window.requestAnimationFrame(() => {
@@ -212,6 +247,9 @@ export default function App() {
             sourceFile={state.sourceFile}
             sourceName={state.sourceFile?.name || "Uploaded dataset"}
             profile={state.profile}
+            analysisLoading={state.loading}
+            analysisError={state.error}
+            onRunStrategy={handleUploadedStrategy}
             onReset={resetAnalysis}
           />
         ) : state.result ? (
@@ -222,6 +260,8 @@ export default function App() {
             enhancementLoading={state.enhancementLoading}
             enhancementError={state.enhancementError}
             isUploadedFile={Boolean(state.sourceFile)}
+            profile={state.profile}
+            onApplyRecommendation={handleApplyRecommendation}
             onReset={resetAnalysis}
           />
         ) : (

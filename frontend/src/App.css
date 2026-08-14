@@ -1299,6 +1299,48 @@ a:focus-visible {
 
 .text-button:hover { text-decoration: underline; }
 
+.strategy-action-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 2rem;
+  padding: 1.25rem;
+}
+
+.strategy-action-card h3 {
+  margin: .25rem 0 .5rem;
+}
+
+.strategy-action-card p {
+  max-width: 660px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.strategy-action-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: .45rem .75rem;
+  min-width: min(100%, 360px);
+}
+
+.strategy-action-controls label {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.strategy-action-controls select {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: .6rem;
+  background: #0d110e;
+  color: var(--ink);
+  font: inherit;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1346,8 +1388,10 @@ a:focus-visible {
 
   .analysis-section-heading,
   .issue-heading,
-  .profile-actions {
+  .profile-actions,
+  .strategy-action-card {
     flex-direction: column;
+    align-items: stretch;
   }
 }
 

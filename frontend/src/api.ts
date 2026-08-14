@@ -16,6 +16,7 @@ export interface FormationResult {
 export interface OptimizeResponse {
   success: boolean
   dataset_name: string
+  target_column?: string | null
   terrain_tags: string[]
   cold_start_default: string
   best_by_sei: string
@@ -308,10 +309,11 @@ export const api = {
     return readJson<OptimizeResponse>(res)
   },
 
-  async enhance(file: File, bestFormation: string): Promise<EnhanceResponse> {
+  async enhance(file: File, bestFormation: string, targetColumn?: string | null): Promise<EnhanceResponse> {
     const form = new FormData()
     form.append("file", file, file.name)
     const query = new URLSearchParams({ formation: bestFormation })
+    if (targetColumn) query.set("target_column", targetColumn)
 
     const res = await fetch(`${API_BASE}/enhance?${query}`, {
       method: "POST",

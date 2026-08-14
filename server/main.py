@@ -201,6 +201,7 @@ class FormationResult(BaseModel):
 class OptimizeResponse(BaseModel):
     success: bool
     dataset_name: str
+    target_column: Optional[str] = None
     terrain_tags: list[str]
     cold_start_default: str
     best_by_sei: str
@@ -298,10 +299,12 @@ async def optimize(
                 raise HTTPException(400, f"Unknown archetype: {archetype}")
             X, y = ARCHETYPES[archetype]()
             dataset_name = archetype
+            target_name = None
         elif file:
             upload = await _load_csv_upload(file, target_column, min_class_rows=3)
             X, y = upload.X, upload.y
             dataset_name = upload.filename
+            target_name = upload.target_name
         else:
             raise HTTPException(400, "Provide either ?archetype or upload a file")
 
@@ -362,6 +365,7 @@ async def optimize(
         return OptimizeResponse(
             success=True,
             dataset_name=dataset_name,
+            target_column=target_name,
             terrain_tags=result.terrain.tags(),
             cold_start_default=result.cold_start_default,
             best_by_sei=result.best_by_sei,

@@ -1,7 +1,8 @@
 import React, { useState } from "react"
-import { api, OptimizeResponse, Formation, EnhanceResponse, ReportFormat } from "../api"
+import { api, OptimizeResponse, Formation, EnhanceResponse, ReportFormat, DatasetProfile } from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
+import DatasetProfileDisplay from "./DatasetProfileDisplay"
 
 interface ResultsDisplayProps {
   result: OptimizeResponse
@@ -10,6 +11,8 @@ interface ResultsDisplayProps {
   enhancementLoading: boolean
   enhancementError: string
   isUploadedFile: boolean
+  profile: DatasetProfile | null
+  onApplyRecommendation: () => void
   onReset: () => void
 }
 
@@ -20,6 +23,8 @@ export default function ResultsDisplay({
   enhancementLoading,
   enhancementError,
   isUploadedFile,
+  profile,
+  onApplyRecommendation,
   onReset,
 }: ResultsDisplayProps) {
   const bestFormation = formations[result.best_by_sei] || {}
@@ -111,6 +116,8 @@ export default function ResultsDisplay({
         </div>
       </Card>
 
+      {profile && <DatasetProfileDisplay profile={profile} />}
+
       {isUploadedFile && (
         <Card className="enhancement-card" aria-live="polite">
           <div className="enhancement-heading">
@@ -136,6 +143,16 @@ export default function ResultsDisplay({
               <strong>Analysis finished, but enhancement could not complete.</strong>
               <p>{enhancementError}</p>
               <p>Your decision record is still available below.</p>
+            </div>
+          )}
+
+          {!enhancement && !enhancementLoading && !enhancementError && (
+            <div className="enhancement-status">
+              <div>
+                <strong>Recommendation ready for review</strong>
+                <p>Apply {result.best_by_sei.replace(/_/g, " ")} to create a model-ready export.</p>
+              </div>
+              <Button onClick={onApplyRecommendation}>Apply recommendation</Button>
             </div>
           )}
 
