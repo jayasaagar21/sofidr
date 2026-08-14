@@ -1133,6 +1133,172 @@ a:focus-visible {
   white-space: nowrap;
 }
 
+.dataset-profile {
+  display: grid;
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.analysis-section-heading,
+.issue-heading,
+.profile-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.analysis-section-heading h2 {
+  margin: 0 0 .5rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 400;
+}
+
+.analysis-section-heading p:not(.eyebrow),
+.issue-heading p,
+.profile-actions p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.quality-badge {
+  flex: 0 0 auto;
+  padding: .55rem .8rem;
+  border: 1px solid rgba(201, 247, 111, .5);
+  border-radius: 999px;
+  color: var(--acid);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.profile-card,
+.issue-card,
+.column-profile-card {
+  padding: 1.25rem;
+}
+
+.profile-facts {
+  display: grid;
+  gap: .75rem;
+  margin: 1rem 0 0;
+}
+
+.profile-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.profile-facts dt,
+.quality-dimensions span {
+  color: var(--muted);
+}
+
+.profile-facts dd {
+  margin: 0;
+  text-align: right;
+}
+
+.profile-facts code {
+  color: var(--acid);
+  font-size: .75rem;
+}
+
+.quality-dimensions {
+  display: grid;
+  gap: .9rem;
+  margin-top: 1rem;
+}
+
+.quality-dimensions div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: .35rem .75rem;
+}
+
+.quality-dimensions i {
+  grid-column: 1 / -1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--line);
+}
+
+.quality-dimensions b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--acid);
+}
+
+.issue-table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.issue-table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+
+.issue-table th,
+.issue-table td {
+  padding: .7rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.issue-table th {
+  color: var(--muted);
+  font-size: .68rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.issue-table small {
+  display: block;
+  max-width: 300px;
+  margin-top: .25rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.severity {
+  display: inline-block;
+  padding: .2rem .45rem;
+  border-radius: 99px;
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.severity-critical,
+.severity-high { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+.severity-medium { background: rgba(251, 191, 36, .16); color: #fcd34d; }
+.severity-low { background: rgba(96, 165, 250, .16); color: #93c5fd; }
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--acid);
+  cursor: pointer;
+  font: inherit;
+}
+
+.text-button:hover { text-decoration: underline; }
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1172,6 +1338,16 @@ a:focus-visible {
 
   .drop-zone {
     min-height: 300px;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-section-heading,
+  .issue-heading,
+  .profile-actions {
+    flex-direction: column;
   }
 }
 

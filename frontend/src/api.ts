@@ -92,6 +92,57 @@ export interface CleanResponse {
   preview: CsvPreview
 }
 
+export interface DatasetProfileColumn {
+  name: string
+  role: string
+  dtype: string
+  n: number
+  n_missing: number
+  pct_missing: number
+  n_unique: number
+  pct_unique: number
+  n_extreme: number
+  pct_extreme: number
+  n_uncastable: number
+  notes: string[]
+}
+
+export interface DatasetIssue {
+  issue: string
+  column: string
+  records_affected: number
+  percentage_affected: number
+  severity: "Critical" | "High" | "Medium" | "Low"
+  priority_score: number
+  potential_impact: string
+  applicable_techniques: string[]
+  research_basis: string
+}
+
+export interface DatasetProfile {
+  dataset: {
+    rows: number
+    columns: number
+    input_fingerprint: string
+    classification: { name: string; source: string }
+    potential_target_fields: string[]
+  }
+  quality: {
+    score: number
+    label: string
+    method: string
+    weights: Record<string, number>
+    dimensions: Record<string, number>
+  }
+  columns: DatasetProfileColumn[]
+  issues: DatasetIssue[]
+  correlations: { left: string; right: string; absolute_correlation: number }[]
+  priority_formula: string
+  source_format: string
+  parsing_steps: string[]
+  strategy_context: { stage: string; detail: string }
+}
+
 const API_BASE = "/api"
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -214,6 +265,18 @@ export const api = {
   async listFormations(): Promise<Formation> {
     const res = await fetch(`${API_BASE}/formations`)
     return readJson<Formation>(res)
+  },
+
+  async profile(file: File, datasetType?: string): Promise<DatasetProfile> {
+    const query = new URLSearchParams()
+    if (datasetType) query.set("dataset_type", datasetType)
+    const form = new FormData()
+    form.append("file", file, file.name)
+    const suffix = query.toString() ? `?${query}` : ""
+    return readJson<DatasetProfile>(await fetch(`${API_BASE}/profile${suffix}`, {
+      method: "POST",
+      body: form,
+    }))
   },
 
   async optimize(

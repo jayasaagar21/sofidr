@@ -39,6 +39,33 @@ def test_metadata_endpoints_are_populated():
     assert {"phalanx", "guerrilla", "reconnaissance"} <= set(formations.json())
 
 
+def test_profile_reports_deterministic_quality_issues_and_override():
+    frame = pd.DataFrame(
+        {
+            "customer_id": ["001", "002", "002", "004"],
+            "amount": [10.0, None, None, 1_000_000.0],
+            "target": ["keep", "drop", "drop", "keep"],
+        }
+    )
+    response = client.post(
+        "/api/profile?dataset_type=Transactional",
+        files={"file": ("customers.csv", io.BytesIO(frame.to_csv(index=False).encode()), "text/csv")},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["strategy_context"]["stage"] == "Phase 0 — Reconnaissance"
+    assert body["dataset"]["classification"] == {
+        "name": "Transactional",
+        "source": "manual override",
+    }
+    assert body["quality"]["score"] == 86.25
+    assert body["quality"]["dimensions"]["completeness"] == 83.333
+    assert body["issues"][0]["priority_score"] <= 100
+    assert any(issue["issue"] == "Missing values" for issue in body["issues"])
+    assert "target" in body["dataset"]["potential_target_fields"]
+
+
 def test_upload_accepts_negative_class_labels():
     response = client.post(
         "/api/optimize?model=logreg",

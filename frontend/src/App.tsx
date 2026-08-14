@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse } from "./api"
+import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse, DatasetProfile } from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
 import ResultsDisplay from "./components/ResultsDisplay"
@@ -19,6 +19,7 @@ interface AppState {
   enhancementLoading: boolean
   enhancementError: string
   cleaning: CleanResponse | null
+  profile: DatasetProfile | null
 }
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
     enhancementLoading: false,
     enhancementError: "",
     cleaning: null,
+    profile: null,
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
@@ -68,6 +70,7 @@ export default function App() {
       enhancementLoading: false,
       enhancementError: "",
       cleaning: null,
+      profile: null,
     }))
     try {
       const result = await api.optimize({ archetype })
@@ -89,13 +92,19 @@ export default function App() {
       enhancementLoading: false,
       enhancementError: "",
       cleaning: null,
+      profile: null,
     }))
     try {
-      // Every dataset is cleaned first and returned as an enhanced artifact.
-      const cleaning = await api.clean(file, "csv")
+      // Profiling measures Phase 0 conditions without changing the dataset.
+      // The human-cleaning artifact remains a separate, explicit output.
+      const [profile, cleaning] = await Promise.all([
+        api.profile(file),
+        api.clean(file, "csv"),
+      ])
       setState((s) => ({
         ...s,
         cleaning,
+        profile,
         result: null,
         loading: false,
         error: "",
@@ -136,6 +145,7 @@ export default function App() {
       enhancementLoading: false,
       enhancementError: "",
       cleaning: null,
+      profile: null,
     }))
   }
 
@@ -201,6 +211,7 @@ export default function App() {
             result={state.cleaning}
             sourceFile={state.sourceFile}
             sourceName={state.sourceFile?.name || "Uploaded dataset"}
+            profile={state.profile}
             onReset={resetAnalysis}
           />
         ) : state.result ? (

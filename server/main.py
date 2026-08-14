@@ -38,6 +38,7 @@ try:
     from sofidr.report import render
     from dq import (
         DATA_EXPORT_FORMATS,
+        analyze_dataset,
         clean_for_human,
         export_dataframe,
         read_tabular,
@@ -244,6 +245,35 @@ async def list_formations():
             "paper": f.paper,
         }
     return out
+
+
+@app.post("/api/profile")
+async def profile_dataset(
+    file: UploadFile = File(...),
+    dataset_type: Optional[str] = Query(None, max_length=80),
+):
+    """Measure dataset conditions before SOFIDR Phase 0 reconnaissance.
+
+    This endpoint only profiles input data. It does not alter the dataset,
+    choose a formation, or run any token-metered model.
+    """
+    _, frame, parsing_steps = await _read_upload(file)
+    if frame.empty:
+        raise HTTPException(400, "Dataset must contain at least one data row")
+    try:
+        intelligence = analyze_dataset(frame, classification_override=dataset_type)
+    except Exception as exc:
+        logger.exception("Dataset profiling failed")
+        raise HTTPException(500, "SOFIDR could not profile this dataset") from exc
+    return {
+        **intelligence,
+        "source_format": os.path.splitext(file.filename or "")[1].lstrip(".").lower() or "unknown",
+        "parsing_steps": parsing_steps,
+        "strategy_context": {
+            "stage": "Phase 0 — Reconnaissance",
+            "detail": "Dataset conditions are measured before SOFIDR evaluates its existing formations.",
+        },
+    }
 
 
 @app.post("/api/optimize")

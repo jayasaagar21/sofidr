@@ -1,12 +1,14 @@
 import React, { useState } from "react"
-import { api, CleanResponse, DataExportFormat } from "../api"
+import { api, CleanResponse, DataExportFormat, DatasetProfile } from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
+import DatasetProfileDisplay from "./DatasetProfileDisplay"
 
 interface CleaningResultsDisplayProps {
   result: CleanResponse
   sourceFile: File | null
   sourceName: string
+  profile: DatasetProfile | null
   onReset: () => void
 }
 
@@ -14,6 +16,7 @@ export default function CleaningResultsDisplay({
   result,
   sourceFile,
   sourceName,
+  profile,
   onReset,
 }: CleaningResultsDisplayProps) {
   const [exportLoading, setExportLoading] = useState<DataExportFormat | null>(null)
@@ -68,6 +71,8 @@ export default function CleaningResultsDisplay({
           <span className="artifact-ready">Enhanced dataset ready</span>
         </div>
       </Card>
+
+      {profile && <DatasetProfileDisplay profile={profile} />}
 
       <Card className="enhancement-card">
         <div className="enhancement-heading">
