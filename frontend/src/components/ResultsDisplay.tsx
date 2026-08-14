@@ -118,6 +118,101 @@ export default function ResultsDisplay({
 
       {profile && <DatasetProfileDisplay profile={profile} />}
 
+      {!!result.strategy_journey?.length && (
+        <Card className="journey-card">
+          <div className="card-heading">
+            <div>
+              <p className="eyebrow">Existing strategy</p>
+              <h3>SOFIDR journey</h3>
+            </div>
+            <span className="method-note">Paper phases 0–2</span>
+          </div>
+          <ol className="strategy-journey">
+            {result.strategy_journey.map((step) => (
+              <li key={step.phase}>
+                <div>
+                  <strong>{step.phase}</strong>
+                  <span className={`journey-status status-${step.status}`}>{step.status}</span>
+                </div>
+                <p>{step.detail}</p>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
+
+      {result.benchmark && (
+        <Card className="benchmark-card">
+          <div className="card-heading">
+            <div>
+              <p className="eyebrow">Fair benchmark</p>
+              <h3>SOFIDR vs conventional baselines</h3>
+            </div>
+            <span className="method-note">{result.benchmark.source}</span>
+          </div>
+          <div className="benchmark-summary">
+            <div>
+              <span>SOFIDR ({result.benchmark.sofidr.formation.replace(/_/g, " ")})</span>
+              <strong>{result.benchmark.sofidr.sei.toFixed(4)}</strong>
+            </div>
+            <div>
+              <span>Best conventional ({result.benchmark.conventional?.label || "—"})</span>
+              <strong>{result.benchmark.conventional?.sei.toFixed(4) || "—"}</strong>
+            </div>
+            <div>
+              <span>Δ SEI</span>
+              <strong>
+                {result.benchmark.delta_sei > 0 ? "+" : ""}
+                {result.benchmark.delta_sei.toFixed(4)}
+              </strong>
+            </div>
+            <div>
+              <span>Measured winner</span>
+              <strong>{result.benchmark.winner}</strong>
+            </div>
+          </div>
+          <p className="benchmark-note">
+            Conventional baselines are the paper’s None / Standard / PCA / Full pipelines.
+            Scores use the same SEI weights and CV conditions. SOFIDR is not forced to win.
+          </p>
+          <div className="table-container">
+            <table className="scoreboard-table">
+              <caption className="sr-only">Conventional baseline SEI scores</caption>
+              <thead>
+                <tr>
+                  <th>Baseline</th>
+                  <th>SEI</th>
+                  <th>Accuracy</th>
+                  <th>Stability</th>
+                  <th>Retention</th>
+                  <th>Simplicity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.benchmark.baselines.map((baseline) => (
+                  <tr
+                    key={baseline.name}
+                    className={
+                      baseline.name === result.benchmark?.conventional?.name ? "best-row" : ""
+                    }
+                  >
+                    <td>
+                      <strong>{baseline.label}</strong>
+                      <small className="baseline-desc">{baseline.description}</small>
+                    </td>
+                    <td className="number"><strong>{baseline.sei.toFixed(4)}</strong></td>
+                    <td className="number">{baseline.accuracy.toFixed(4)}</td>
+                    <td className="number">{baseline.stability.toFixed(4)}</td>
+                    <td className="number">{baseline.retention.toFixed(3)}</td>
+                    <td className="number">{baseline.simplicity.toFixed(3)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       {isUploadedFile && (
         <Card className="enhancement-card" aria-live="polite">
           <div className="enhancement-heading">
@@ -326,6 +421,59 @@ export default function ResultsDisplay({
         <h3>Analysis report</h3>
         <pre>{result.report}</pre>
       </Card>
+
+      {result.research && (
+        <Card className="research-card">
+          <div className="card-heading">
+            <div>
+              <p className="eyebrow">Research evidence</p>
+              <h3>Why this formation fits SOFIDR</h3>
+            </div>
+            <span className="method-note">{result.research.source.date}</span>
+          </div>
+          <p className="research-source">{result.research.source.title}</p>
+          <p>
+            Selected formation <strong>{result.research.selected_formation.formation.replace(/_/g, " ")}</strong>
+            {" "}({result.research.selected_formation.note}). Target terrain:{" "}
+            {result.research.selected_formation.target_terrain}.
+          </p>
+          {result.research.selected_formation.table_1 && (
+            <dl className="technique-grid">
+              {Object.entries(result.research.selected_formation.table_1).map(([key, value]) => (
+                <div key={key}>
+                  <dt>{key.replace(/_/g, " ")}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <div className="table-container">
+            <table className="issue-table">
+              <caption className="sr-only">Techniques inside the selected formation</caption>
+              <thead>
+                <tr>
+                  <th>Technique</th>
+                  <th>Problem</th>
+                  <th>Conditions</th>
+                  <th>Risk</th>
+                  <th>Research</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.research.selected_formation.techniques.map((technique) => (
+                  <tr key={technique.technique}>
+                    <td><strong>{technique.technique}</strong></td>
+                    <td>{technique.problem_addressed}</td>
+                    <td>{technique.suitable_conditions}</td>
+                    <td>{technique.information_loss_risk}</td>
+                    <td>{technique.research_support}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card className="report-export-card">
         <div className="report-export-heading">

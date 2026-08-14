@@ -32,10 +32,12 @@ from sklearn.preprocessing import LabelEncoder
 # Import SOFIDR from the local package
 try:
     from sofidr import SOFIDRFramework, KnowledgeBase
+    from sofidr.baselines import evaluate_baselines
     from sofidr.datasets import ARCHETYPES
     from sofidr.exports import REPORT_FORMATS, build_report
     from sofidr.formations import FORMATIONS, enhance_dataset
     from sofidr.report import render
+    from sofidr.research import research_bundle
     from dq import (
         DATA_EXPORT_FORMATS,
         analyze_dataset,
@@ -210,6 +212,12 @@ class OptimizeResponse(BaseModel):
     scoreboard: list[FormationResult]
     report: str
     error: str = ""
+    strategy: str = "SOFIDR"
+    strategy_journey: list[dict] = []
+    terrain: dict = {}
+    refinement_log: list[dict] = []
+    benchmark: dict = {}
+    research: dict = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -246,6 +254,14 @@ async def list_formations():
             "paper": f.paper,
         }
     return out
+
+
+@app.get("/api/research")
+async def list_research(formation: Optional[str] = Query(None)):
+    """Return paper-backed technique and formation research mappings."""
+    if formation and formation not in FORMATIONS:
+        raise HTTPException(400, f"Unknown formation: {formation}")
+    return research_bundle(formation or "phalanx")
 
 
 @app.post("/api/profile")
@@ -347,6 +363,13 @@ async def optimize(
             persist=True,
         )
         result = fw.execute(X, y)
+        baseline_board = evaluate_baselines(
+            X, y, base_estimator=est, cv_folds=3, random_state=42
+        )
+        best_formation = next(res for res in result.ranked() if res.formation == result.best_by_sei)
+        best_conventional = baseline_board[0] if baseline_board else None
+        sofidr_sei = round(best_formation.sei, 4)
+        conventional_sei = best_conventional["sei"] if best_conventional else 0.0
 
         # Format response
         scoreboard = [
@@ -362,6 +385,42 @@ async def optimize(
             for res in result.ranked()
         ]
 
+        strategy_journey = [
+            {
+                "phase": "Phase 0 — Reconnaissance",
+                "status": "complete",
+                "detail": (
+                    f"Terrain tags: {', '.join(result.terrain.tags())}. "
+                    f"Algorithm 1 cold-start default: {result.cold_start_default}."
+                ),
+            },
+            {
+                "phase": "Phase 1 — Multi-Formation Evaluation",
+                "status": "complete",
+                "detail": (
+                    f"Evaluated {len(scoreboard)} formations on shared stratified folds. "
+                    f"Deterministic best by SEI: {result.best_by_sei} ({sofidr_sei})."
+                ),
+            },
+            {
+                "phase": "Phase 2 — Iterative Refinement",
+                "status": "complete" if result.refinement_log else "skipped",
+                "detail": (
+                    f"{len(result.refinement_log)} refinement iteration(s) completed."
+                    if result.refinement_log
+                    else "Skipped for this run (iterations=0). Initial SEI ranking retained."
+                ),
+            },
+            {
+                "phase": "Formation recommendation",
+                "status": "complete",
+                "detail": (
+                    f"best_by_sei={result.best_by_sei}; "
+                    f"bandit selected={result.selected} ({result.selection_reason})."
+                ),
+            },
+        ]
+
         return OptimizeResponse(
             success=True,
             dataset_name=dataset_name,
@@ -373,6 +432,33 @@ async def optimize(
             selection_reason=result.selection_reason,
             scoreboard=scoreboard,
             report=render(result, dataset_name=dataset_name),
+            strategy="SOFIDR",
+            strategy_journey=strategy_journey,
+            terrain=result.terrain.as_dict(),
+            refinement_log=result.refinement_log,
+            benchmark={
+                "method": "Same SEI weights and shared CV conditions as formation evaluation",
+                "source": "SOFIDR paper Section 5.2",
+                "sofidr": {
+                    "formation": result.best_by_sei,
+                    "sei": sofidr_sei,
+                    "accuracy": round(best_formation.accuracy, 4),
+                    "stability": round(best_formation.stability, 4),
+                    "retention": round(best_formation.retention, 3),
+                    "simplicity": round(best_formation.simplicity, 3),
+                },
+                "conventional": best_conventional,
+                "baselines": baseline_board,
+                "delta_sei": round(sofidr_sei - conventional_sei, 4),
+                "winner": (
+                    "SOFIDR"
+                    if sofidr_sei > conventional_sei
+                    else "Conventional"
+                    if conventional_sei > sofidr_sei
+                    else "Tie"
+                ),
+            },
+            research=research_bundle(result.best_by_sei),
         )
 
     except HTTPException:

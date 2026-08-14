@@ -25,6 +25,88 @@ export interface OptimizeResponse {
   scoreboard: FormationResult[]
   report: string
   error?: string
+  strategy?: string
+  strategy_journey?: {
+    phase: string
+    status: string
+    detail: string
+  }[]
+  terrain?: Record<string, number>
+  refinement_log?: Record<string, unknown>[]
+  benchmark?: {
+    method: string
+    source: string
+    sofidr: {
+      formation: string
+      sei: number
+      accuracy: number
+      stability: number
+      retention: number
+      simplicity: number
+    }
+    conventional: {
+      name: string
+      label: string
+      description: string
+      sei: number
+      accuracy: number
+      stability: number
+      retention: number
+      simplicity: number
+      error?: string
+      source: string
+    } | null
+    baselines: {
+      name: string
+      label: string
+      description: string
+      sei: number
+      accuracy: number
+      stability: number
+      retention: number
+      simplicity: number
+      error?: string
+      source: string
+    }[]
+    delta_sei: number
+    winner: string
+  }
+  research?: {
+    source: {
+      title: string
+      date: string
+      phases: string[]
+      sei_weights: Record<string, number>
+      algorithm_1: string
+      baselines: string
+    }
+    selected_formation: {
+      formation: string
+      paper: boolean
+      target_terrain: string
+      table_1?: Record<string, string> | null
+      techniques: {
+        technique: string
+        problem_addressed: string
+        suitable_conditions: string
+        limitations: string
+        information_loss_risk: string
+        formations: string[]
+        research_support: string
+      }[]
+      note: string
+    }
+    techniques: {
+      technique: string
+      problem_addressed: string
+      suitable_conditions: string
+      limitations: string
+      information_loss_risk: string
+      formations: string[]
+      research_support: string
+    }[]
+    paper_formations: string[]
+  }
 }
 
 export interface Archetype {

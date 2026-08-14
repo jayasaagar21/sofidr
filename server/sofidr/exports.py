@@ -27,6 +27,21 @@ def _scoreboard(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return list(payload.get("scoreboard") or [])
 
 
+def _benchmark_html(payload: dict[str, Any]) -> str:
+    benchmark = payload.get("benchmark") or {}
+    if not benchmark:
+        return ""
+    conventional = benchmark.get("conventional") or {}
+    sofidr = benchmark.get("sofidr") or {}
+    return f"""
+  <section class="recommendation">
+    <strong>Conventional benchmark (paper §5.2)</strong>
+    <p>SOFIDR SEI: {float(sofidr.get('sei', 0)):.4f} · Best conventional ({html.escape(str(conventional.get('label', '—')))}): {float(conventional.get('sei', 0)):.4f}</p>
+    <p>Δ SEI: {float(benchmark.get('delta_sei', 0)):.4f} · Measured winner: {html.escape(str(benchmark.get('winner', '—')))}</p>
+  </section>
+"""
+
+
 def _json_report(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
 
@@ -68,6 +83,7 @@ def _html_report(payload: dict[str, Any]) -> bytes:
     <p>Learning policy: {html.escape(_title(str(payload['selected'])))}</p>
     <p>{html.escape(str(payload['selection_reason']))}</p>
   </section>
+  {_benchmark_html(payload)}
   <h2>Formation scoreboard</h2>
   <table>
     <thead><tr><th>Rank</th><th>Formation</th><th>SEI</th><th>Accuracy</th><th>Stability</th><th>Retention</th><th>Simplicity</th></tr></thead>

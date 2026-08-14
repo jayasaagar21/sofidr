@@ -66,7 +66,31 @@ def test_profile_reports_deterministic_quality_issues_and_override():
     assert "target" in body["dataset"]["potential_target_fields"]
 
 
-def test_upload_accepts_negative_class_labels():
+def test_optimize_includes_paper_benchmark_and_research():
+    response = client.post("/api/optimize?archetype=breast_cancer&model=logreg")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["strategy"] == "SOFIDR"
+    assert body["strategy_journey"][0]["phase"].startswith("Phase 0")
+    assert body["benchmark"]["source"] == "SOFIDR paper Section 5.2"
+    assert {item["name"] for item in body["benchmark"]["baselines"]} == {
+        "none",
+        "standard",
+        "pca",
+        "full",
+    }
+    assert body["benchmark"]["winner"] in {"SOFIDR", "Conventional", "Tie"}
+    assert body["research"]["selected_formation"]["formation"] == body["best_by_sei"]
+    assert "accuracy" in body["research"]["source"]["sei_weights"]
+
+
+def test_research_endpoint_returns_paper_mappings():
+    response = client.get("/api/research?formation=phalanx")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"]["baselines"].startswith("None, Standard")
+    assert body["selected_formation"]["table_1"]["imputation"] == "Median"
+
     response = client.post(
         "/api/optimize?model=logreg",
         files={"file": ("negative-labels.csv", io.BytesIO(_csv(labels=(-1, 1))), "text/csv")},

@@ -4,35 +4,35 @@ import { Button } from "./ui/Button"
 const stages = [
   {
     title: "Reconnaissance",
-    label: "Map the terrain",
+    label: "Phase 0 — Map the terrain",
     description:
-      "SOFIDR profiles class balance, missingness, dimensionality, and signal structure before changing the data.",
+      "SOFIDR profiles dimensionality, missingness, class balance, and feature correlation before any formation is applied.",
     signal: "Terrain profile",
-    value: "4 conditions detected",
+    value: "Algorithm 1 cold-start",
   },
   {
-    title: "Formation comparison",
-    label: "Test every strategy",
+    title: "Multi-formation evaluation",
+    label: "Phase 1 — Compare formations",
     description:
-      "Eight preprocessing formations run against the same stratified folds so each comparison stays fair and leak-resistant.",
+      "Paper formations and registered extras are scored with the Strategic Efficiency Index on the same stratified folds.",
     signal: "Controlled trial",
-    value: "8 formations × 3 folds",
+    value: "Shared 3-fold SEI",
   },
   {
-    title: "SEI ranking",
-    label: "Balance the tradeoffs",
+    title: "Iterative refinement",
+    label: "Phase 2 — Stress the choice",
     description:
-      "The Strategic Efficiency Index weighs accuracy, stability, feature retention, and simplicity—not accuracy alone.",
-    signal: "Leading score",
-    value: "SEI 0.842",
+      "Controlled perturbations re-check robustness. A switch occurs only if an alternative beats the current SEI by more than 3%.",
+    signal: "Adaptation rule",
+    value: "Switch if >3% better",
   },
   {
-    title: "Data enhancement",
-    label: "Build model-ready output",
+    title: "Recommendation & enhancement",
+    label: "Defendable output",
     description:
-      "For uploaded CSVs, the winning formation is applied and returned as a downloadable, model-ready dataset.",
+      "best_by_sei is the deterministic recommendation. For uploads, that formation can then produce a model-ready export.",
     signal: "Final artifact",
-    value: "Enhanced CSV",
+    value: "Formation + report",
   },
 ]
 
@@ -67,11 +67,11 @@ export default function GuidedProcessDemo({
       <div className="process-intro">
         <p className="eyebrow">Guided process demo</p>
         <h2 id="process-title" ref={headingRef} tabIndex={-1}>
-          See how a dataset becomes a decision.
+          See how SOFIDR applies its strategy.
         </h2>
         <p>
-          Step through SOFIDR’s evidence chain. Every recommendation is tied to
-          measured terrain and a comparable validation result.
+          SOFIDR is fixed. What changes by dataset is terrain, formation ranking,
+          technique mix inside that formation, and the measured outcome.
         </p>
       </div>
 
