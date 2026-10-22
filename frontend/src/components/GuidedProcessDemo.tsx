@@ -3,36 +3,28 @@ import { Button } from "./ui/Button"
 
 const stages = [
   {
-    title: "Scan the dataset",
-    label: "See what needs attention",
+    title: "Dataset",
+    label: "Step 1",
     description:
-      "SOFIDR reads your file and checks for blanks, duplicates, unusual values, and columns that may need attention — then shows what it found in plain language.",
-    signal: "Data scan",
-    value: "Issues listed",
+      "Upload your file. SOFIDR cleans it, shows a preview, and lets you download the result. Tap “Explain the approach” if you want a plain-language summary of what changed.",
+    signal: "Preview + download",
+    value: "Ready file",
   },
   {
-    title: "Clean every row",
-    label: "Get a usable file",
+    title: "Visualization",
+    label: "Step 2",
     description:
-      "Structure is repaired, empty cells are filled with traceable defaults, and common fields are standardized. You download a cleaned dataset — not just a report.",
-    signal: "Full clean",
-    value: "Ready CSV",
+      "Click through to charts: issue priorities, quality signals, and — when you compare options — how the six paper formations score on SEI.",
+    signal: "Patterns",
+    value: "Clear charts",
   },
   {
-    title: "Compare options (optional)",
-    label: "When you have a category to predict",
+    title: "Report",
+    label: "Step 3",
     description:
-      "If your data has a category column to predict, SOFIDR can compare six proven ways to prepare it under the same conditions.",
-    signal: "Fair comparison",
-    value: "6 approaches",
-  },
-  {
-    title: "Visualize & decide",
-    label: "Turn analysis into action",
-    description:
-      "Open Visualize for a storytelling report: the problem, why a formation won under SEI, charts across options, significant insights, and next action items — then share a summary without sending the raw file.",
-    signal: "Decision story",
-    value: "Insights + actions",
+      "A research-style insight report built from steps 1 and 2: key conclusions, highlight charts, and next actions — without dumping the raw dataset.",
+    signal: "Decision ready",
+    value: "Insights",
   },
 ]
 
@@ -67,11 +59,10 @@ export default function GuidedProcessDemo({
       <div className="process-intro">
         <p className="eyebrow">How it works</p>
         <h2 id="process-title" ref={headingRef} tabIndex={-1}>
-          Scan → clean → download. Step by step.
+          One step after another.
         </h2>
         <p>
-          Follow the journey in plain language. Large CSV files are cleaned in your
-          browser so scale stays practical — and nothing is kept after the session.
+          No clutter. Click through Dataset, Visualization, then Report — each step unlocks the next.
         </p>
       </div>
 
@@ -120,7 +111,7 @@ export default function GuidedProcessDemo({
                 </Button>
               ) : (
                 <Button onClick={onChooseBenchmark}>
-                  Try an example <span aria-hidden="true">↓</span>
+                  Try it <span aria-hidden="true">↓</span>
                 </Button>
               )}
             </div>

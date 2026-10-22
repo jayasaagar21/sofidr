@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from "react"
 import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse, DatasetProfile } from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
-import ResultsDisplay from "./components/ResultsDisplay"
 import GuidedProcessDemo from "./components/GuidedProcessDemo"
 import AnalysisProgress from "./components/AnalysisProgress"
-import CleaningResultsDisplay from "./components/CleaningResultsDisplay"
+import AnalysisJourney from "./components/AnalysisJourney"
 import PrivacyTrust from "./components/PrivacyTrust"
 import {
   ScanProgress,
@@ -272,9 +271,9 @@ export default function App() {
             </a>
           </div>
           <div className="hero-proof" aria-label="SOFIDR promises">
-            <span><strong>Up to ~1M rows</strong> via CSV/TSV</span>
-            <span><strong>Not stored</strong> after this session</span>
-            <span><strong>Shareable</strong> result summary</span>
+            <span><strong>1 Dataset</strong> preview & download</span>
+            <span><strong>2 Visualization</strong> clear charts</span>
+            <span><strong>3 Report</strong> insights only</span>
           </div>
         </div>
       </header>
@@ -297,59 +296,47 @@ export default function App() {
 
       <section className="viz-marketing" id="visualize-story" aria-labelledby="viz-marketing-heading">
         <div className="viz-marketing-inner">
-          <p className="eyebrow">Visualization & storytelling</p>
-          <h2 id="viz-marketing-heading">From raw rows to a decision narrative.</h2>
+          <p className="eyebrow">Three clear steps</p>
+          <h2 id="viz-marketing-heading">Dataset → Visualization → Report.</h2>
           <p>
-            After cleaning — and especially after comparing options — open{" "}
-            <strong>Visualize</strong> for a full storytelling report: the business problem,
-            optional repairs, why a preparation formation won under the paper’s SEI metric,
-            charts across all six options, significant insights, and next action items.
+            Upload once. Step 1 gives you a preview and download. Step 2 shows the charts.
+            Step 3 builds a research-style insight report — no raw data dump, just what matters
+            for a decision.
           </p>
-          <ol className="viz-marketing-steps" aria-label="Visualize story acts">
+          <ol className="viz-marketing-steps" aria-label="Analysis steps">
             <li>
-              <strong>Problem</strong>
-              <span>What the dataset is trying to say, and where risk lives.</span>
+              <strong>1 · Dataset</strong>
+              <span>Preview the cleaned file and download it.</span>
             </li>
             <li>
-              <strong>Method</strong>
-              <span>Terrain → Algorithm 1 cold-start → SEI scoreboard (paper weights).</span>
+              <strong>2 · Visualization</strong>
+              <span>See issues, quality, and formation scores.</span>
             </li>
             <li>
-              <strong>Decision</strong>
-              <span>Insights leaders can use, plus concrete next actions.</span>
+              <strong>3 · Report</strong>
+              <span>Insights, highlight charts, and next actions.</span>
             </li>
           </ol>
           <a className="hero-cta viz-marketing-cta" href="#analysis">
-            Run an analysis, then Visualize
+            Start with a file
           </a>
         </div>
       </section>
 
       <main className="app-main" id="analysis">
-        {state.cleaning && !state.result ? (
-          <CleaningResultsDisplay
-            result={state.cleaning}
-            sourceFile={state.sourceFile}
-            sourceName={state.sourceFile?.name || "Uploaded dataset"}
-            profile={state.profile}
-            analysisLoading={state.loading}
-            analysisError={state.error}
-            onRunStrategy={handleUploadedStrategy}
-            onReset={resetAnalysis}
-          />
-        ) : state.result ? (
-          <ResultsDisplay
-            result={state.result}
-            formations={state.formations}
-            enhancement={state.enhancement}
-            enhancementLoading={state.enhancementLoading}
-            enhancementError={state.enhancementError}
-            isUploadedFile={Boolean(state.sourceFile)}
-            profile={state.profile}
-            onApplyRecommendation={handleApplyRecommendation}
-            onReset={resetAnalysis}
+        {state.cleaning || state.result ? (
+          <AnalysisJourney
             cleaning={state.cleaning}
-            sourceName={state.sourceFile?.name || state.result.dataset_name}
+            profile={state.profile}
+            optimize={state.result}
+            sourceFile={state.sourceFile}
+            sourceName={
+              state.sourceFile?.name || state.result?.dataset_name || "Uploaded dataset"
+            }
+            onReset={resetAnalysis}
+            onRunStrategy={state.sourceFile ? handleUploadedStrategy : undefined}
+            strategyLoading={state.loading && Boolean(state.cleaning)}
+            strategyError={state.error}
           />
         ) : (
           <div className="input-section">
