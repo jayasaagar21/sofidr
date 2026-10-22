@@ -10,15 +10,16 @@ import {
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
 import GuidedProcessDemo from "./components/GuidedProcessDemo"
-import AnalysisProgress from "./components/AnalysisProgress"
-import AnalysisJourney from "./components/AnalysisJourney"
+import ProcessingPage from "./components/ProcessingPage"
+import ResultsWorkspace, { WorkspacePage } from "./components/ResultsWorkspace"
 import {
   ScanProgress,
-  buildClassificationSample,
   cleanLocally,
   needsLocalProcessing,
 } from "./lib/localClean"
 import "./App.css"
+
+type AppRoute = "landing" | "processing" | "workspace"
 
 interface AppState {
   loading: boolean
@@ -30,10 +31,19 @@ interface AppState {
   cleaning: CleanResponse | null
   profile: DatasetProfile | null
   scanProgress: ScanProgress | null
+  scanLog: string[]
   processMode: "server" | "local" | null
+  sourceLabel: string
+}
+
+function pushLog(log: string[], line: string): string[] {
+  if (log[log.length - 1] === line) return log
+  return [...log, line]
 }
 
 export default function App() {
+  const [route, setRoute] = useState<AppRoute>("landing")
+  const [workspacePage, setWorkspacePage] = useState<WorkspacePage>("dataset")
   const [state, setState] = useState<AppState>({
     loading: false,
     error: "",
@@ -44,11 +54,12 @@ export default function App() {
     cleaning: null,
     profile: null,
     scanProgress: null,
+    scanLog: [],
     processMode: null,
+    sourceLabel: "",
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
-  const hasOutput = Boolean(state.cleaning || state.result)
 
   useEffect(() => {
     const load = async () => {
@@ -69,7 +80,45 @@ export default function App() {
     load()
   }, [])
 
+  const goLanding = () => {
+    setRoute("landing")
+    setWorkspacePage("dataset")
+    setState((s) => ({
+      ...s,
+      loading: false,
+      error: "",
+      result: null,
+      sourceFile: null,
+      cleaning: null,
+      profile: null,
+      scanProgress: null,
+      scanLog: [],
+      processMode: null,
+      sourceLabel: "",
+    }))
+    window.requestAnimationFrame(() => {
+      document.getElementById("start")?.scrollIntoView({ block: "start" })
+    })
+  }
+
+  const finishToWorkspace = (patch: Partial<AppState>) => {
+    setState((s) => ({
+      ...s,
+      ...patch,
+      loading: false,
+      scanProgress: null,
+      scanLog: pushLog(
+        pushLog(patch.scanLog || s.scanLog, "Scan complete"),
+        "Results ready"
+      ),
+    }))
+    setWorkspacePage("dataset")
+    setRoute("workspace")
+  }
+
   const handleArchetypeSelect = async (archetype: string) => {
+    setRoute("processing")
+    setWorkspacePage("dataset")
     setState((s) => ({
       ...s,
       loading: true,
@@ -78,12 +127,23 @@ export default function App() {
       cleaning: null,
       profile: null,
       scanProgress: null,
+      scanLog: ["Example selected", "Loading prepared dataset", "Running comparison"],
       processMode: "server",
       result: null,
+      sourceLabel: archetype.replace(/_/g, " "),
     }))
     try {
       const result = await api.optimize({ archetype })
-      setState((s) => ({ ...s, result, loading: false }))
+      finishToWorkspace({
+        result,
+        sourceLabel: result.dataset_name || archetype.replace(/_/g, " "),
+        scanLog: [
+          "Example selected",
+          "Loading prepared dataset",
+          "Running comparison",
+          "Scoreboard ready",
+        ],
+      })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
       setState((s) => ({ ...s, error: msg, loading: false }))
@@ -92,6 +152,8 @@ export default function App() {
 
   const handleFileUpload = async (file: File) => {
     const useLocal = needsLocalProcessing(file)
+    setRoute("processing")
+    setWorkspacePage("dataset")
     setState((s) => ({
       ...s,
       loading: true,
@@ -101,76 +163,59 @@ export default function App() {
       cleaning: null,
       profile: null,
       scanProgress: null,
+      scanLog: [`File added: ${file.name}`, "Opening document"],
       processMode: useLocal ? "local" : "server",
+      sourceLabel: file.name,
     }))
     try {
       if (useLocal) {
         const { cleaning, profile } = await cleanLocally(file, {
-          onProgress: (scanProgress) => setState((s) => ({ ...s, scanProgress })),
+          onProgress: (scanProgress) =>
+            setState((s) => ({
+              ...s,
+              scanProgress,
+              scanLog: pushLog(s.scanLog, scanProgress.detail),
+            })),
         })
-        setState((s) => ({
-          ...s,
+        finishToWorkspace({
           cleaning,
           profile,
           result: null,
-          loading: false,
-          error: "",
-          scanProgress: null,
-        }))
+          scanLog: [
+            `File added: ${file.name}`,
+            "Large-file path · cleaned in browser",
+            "Issues scanned",
+            "Repairs applied",
+            "Preview prepared",
+          ],
+        })
         return
       }
 
+      setState((s) => ({
+        ...s,
+        scanLog: pushLog(s.scanLog, "Profiling columns"),
+      }))
       const [profile, cleaning] = await Promise.all([
         api.profile(file),
         api.clean(file, "csv"),
       ])
       cleaning.metadata.processingMode = "server"
-      setState((s) => ({
-        ...s,
+      finishToWorkspace({
         cleaning,
         profile,
         result: null,
-        loading: false,
-        error: "",
-        scanProgress: null,
-      }))
+        scanLog: [
+          `File added: ${file.name}`,
+          "Reading structure",
+          "Scanning for issues",
+          "Repairing data",
+          "Preparing preview",
+        ],
+      })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
       setState((s) => ({ ...s, error: msg, loading: false, scanProgress: null }))
-    }
-  }
-
-  const handleUploadedStrategy = async (targetColumn: string) => {
-    if (!state.sourceFile) return
-    setState((s) => ({
-      ...s,
-      loading: true,
-      error: "",
-      result: null,
-      processMode: state.processMode || "server",
-    }))
-    try {
-      const fileForOptimize =
-        state.processMode === "local"
-          ? await buildClassificationSample(state.sourceFile)
-          : state.sourceFile
-      const result = await api.optimize({
-        file: fileForOptimize,
-        target_column: targetColumn,
-      })
-      if (state.processMode === "local") {
-        result.selection_reason = [
-          result.selection_reason,
-          "Compared on a sample of this large file; your full cleaned download is unchanged.",
-        ]
-          .filter(Boolean)
-          .join(" ")
-      }
-      setState((s) => ({ ...s, result, loading: false }))
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "SOFIDR could not evaluate this target"
-      setState((s) => ({ ...s, error: message, loading: false }))
     }
   }
 
@@ -196,26 +241,32 @@ export default function App() {
     )
   }
 
-  const resetAnalysis = () => {
-    setState((s) => ({
-      ...s,
-      loading: false,
-      error: "",
-      result: null,
-      sourceFile: null,
-      cleaning: null,
-      profile: null,
-      scanProgress: null,
-      processMode: null,
-    }))
-    window.requestAnimationFrame(() => scrollTo("start"))
+  if (route === "processing") {
+    return (
+      <div className="app app-process">
+        <ProcessingPage
+          fileName={state.sourceLabel || state.sourceFile?.name || "Your file"}
+          progress={state.scanProgress}
+          error={state.error}
+          onCancel={goLanding}
+        />
+      </div>
+    )
   }
 
-  if (hasOutput) {
+  if (route === "workspace") {
     return (
       <div className="app app-results">
         <header className="results-topbar">
-          <a className="brand" href="/" aria-label="SOFIDR home">
+          <a
+            className="brand"
+            href="/"
+            aria-label="SOFIDR home"
+            onClick={(e) => {
+              e.preventDefault()
+              goLanding()
+            }}
+          >
             <span className="brand-mark" aria-hidden="true">
               S
             </span>
@@ -224,18 +275,17 @@ export default function App() {
           <p className="results-topbar-note">Session only · nothing stored</p>
         </header>
         <main className="app-main results-main">
-          <AnalysisJourney
+          <ResultsWorkspace
+            page={workspacePage}
+            onPageChange={setWorkspacePage}
             cleaning={state.cleaning}
             profile={state.profile}
             optimize={state.result}
             sourceFile={state.sourceFile}
-            sourceName={
-              state.sourceFile?.name || state.result?.dataset_name || "Uploaded dataset"
-            }
-            onReset={resetAnalysis}
-            onRunStrategy={state.sourceFile ? handleUploadedStrategy : undefined}
-            strategyLoading={state.loading && Boolean(state.cleaning)}
-            strategyError={state.error}
+            sourceName={state.sourceLabel || "Uploaded dataset"}
+            scanLog={state.scanLog}
+            onBack={goLanding}
+            onReset={goLanding}
           />
         </main>
         <footer className="app-footer compact">
@@ -342,8 +392,8 @@ export default function App() {
               <h2>Now run the same story on your data.</h2>
             </div>
             <p>
-              Upload a file or pick an example. You’ll land on one results page — dataset,
-              visualization, report — connected exactly as the demo showed.
+              Upload a file. You’ll see it scan step by step, then open Dataset, Visualization,
+              and Report as separate pages.
             </p>
           </div>
           <div className="input-container">
@@ -359,18 +409,10 @@ export default function App() {
             />
           </div>
 
-          {state.error && (
+          {state.error && route === "landing" && (
             <div className="error-message" role="alert">
               {state.error}
             </div>
-          )}
-
-          {state.loading && (
-            <AnalysisProgress
-              progress={state.scanProgress}
-              fileName={state.sourceFile?.name}
-              mode={state.processMode || "auto"}
-            />
           )}
         </div>
       </main>
