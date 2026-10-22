@@ -313,28 +313,28 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app-header landing-header">
-        <nav className="nav landing-nav" aria-label="Primary navigation">
-          <a className="brand" href="/" aria-label="SOFIDR home">
-            <span className="brand-mark" aria-hidden="true">
-              S
-            </span>
-            <span>SOFIDR</span>
+      <nav className="nav landing-nav sticky-nav" aria-label="Primary navigation">
+        <a className="brand" href="#explain" aria-label="SOFIDR home">
+          <span className="brand-mark" aria-hidden="true">
+            S
+          </span>
+          <span>SOFIDR</span>
+        </a>
+        <div className="nav-links">
+          <a href="#explain">Explain SOFIDR</a>
+          <a href="#problem">Problem</a>
+          <a href="#solution">Solution</a>
+          <a href="#demo">Demo</a>
+          <a href="#start" className="nav-start">
+            Start
           </a>
-          <div className="nav-links">
-            <a href="#intro">Intro</a>
-            <a href="#problem">Problem</a>
-            <a href="#solution">Solution</a>
-            <a href="#demo">Demo</a>
-            <a href="#start" className="nav-start">
-              Start
-            </a>
-          </div>
-        </nav>
+        </div>
+      </nav>
 
-        <div className="hero intro-hero" id="intro">
-          <p className="eyebrow intro-fade">What is SOFIDR</p>
-          <h1 className="intro-title">
+      <header className="app-header landing-header">
+        <section className="hero intro-hero" id="explain" aria-labelledby="explain-heading">
+          <p className="eyebrow intro-fade">Explain SOFIDR</p>
+          <h1 className="intro-title" id="explain-heading">
             <span className="intro-brand">SOFIDR</span>
           </h1>
           <p className="intro-expand intro-fade-delay">
@@ -353,7 +353,7 @@ export default function App() {
               Start now
             </a>
           </div>
-        </div>
+        </section>
       </header>
 
       <section className="landing-block" id="problem" aria-labelledby="problem-heading">

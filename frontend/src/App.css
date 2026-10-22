@@ -17,6 +17,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
   background: #0c0f0d;
 }
 
@@ -2919,6 +2920,30 @@ a:focus-visible {
   gap: 1.5rem;
 }
 
+.sticky-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 max(1.5rem, calc((100vw - 1180px) / 2));
+  min-height: 72px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(12, 15, 13, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.sticky-nav .brand,
+.sticky-nav .nav-links {
+  flex-shrink: 0;
+}
+
+.sticky-nav .nav-links {
+  margin-left: auto;
+}
+
 .nav-links {
   display: flex;
   flex-wrap: wrap;
@@ -4150,9 +4175,15 @@ a:focus-visible {
     justify-content: flex-start;
   }
 
-  .landing-nav {
+  .landing-nav,
+  .sticky-nav {
     flex-wrap: wrap;
     min-height: auto;
-    padding: 1rem 0;
+    padding: 0.85rem 1.25rem;
+  }
+
+  .sticky-nav .nav-links {
+    width: 100%;
+    margin-left: 0;
   }
 }
