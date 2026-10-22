@@ -152,10 +152,11 @@ export default function AnalysisJourney({
         <button type="button" className="back-button" onClick={onReset}>
           ← Back to start
         </button>
-        <p className="eyebrow">Your output</p>
+        <p className="eyebrow">Your story continues</p>
         <h1>{sourceName}</h1>
         <p className="results-page-lead">
-          One page. Three sections — cleaned data, a visual view, then a downloadable report.
+          Same path as the demo: cleaned dataset first, then visualization, then a report built
+          from both.
         </p>
         <nav className="results-page-nav" aria-label="On this page">
           <a href="#out-dataset">Dataset</a>

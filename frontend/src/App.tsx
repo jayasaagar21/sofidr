@@ -282,7 +282,7 @@ export default function App() {
         </nav>
 
         <div className="hero" id="problem">
-          <p className="eyebrow">The problem</p>
+          <p className="eyebrow">Chapter 0 · The problem</p>
           <h1>
             Messy data
             <br />
@@ -292,31 +292,43 @@ export default function App() {
             Spreadsheets arrive with blanks, duplicates, and unclear fields. Teams argue over
             numbers instead of acting on them — and nobody trusts the file enough to decide.
           </p>
+          <div className="hero-actions">
+            <button type="button" className="hero-cta" onClick={openDemo}>
+              Watch the story <span aria-hidden="true">↓</span>
+            </button>
+            <a className="hero-secondary" href="#start">
+              Skip to start
+            </a>
+          </div>
         </div>
       </header>
 
       <section className="landing-block" id="solution" aria-labelledby="solution-heading">
         <div className="landing-inner">
-          <p className="eyebrow">The solution</p>
-          <h2 id="solution-heading">Clean the file. See the story. Take the report.</h2>
+          <p className="eyebrow">Then · The solution</p>
+          <h2 id="solution-heading">Turn that file into a decision story.</h2>
           <p>
-            SOFIDR turns an upload into a cleaned dataset, a simple visual view of what matters,
-            and a downloadable insight report — processed for this visit only, then discarded.
+            SOFIDR takes the messy upload and walks it forward: repair the dataset, show what
+            matters visually, then hand you a report you can edit and share — all in one session,
+            with nothing stored afterward.
           </p>
           <ul className="landing-points">
             <li>
               <strong>Dataset</strong>
-              <span>Preview and download a cleaner file.</span>
+              <span>A cleaner file you can preview and download.</span>
             </li>
             <li>
               <strong>Visualization</strong>
-              <span>See issues and quality at a glance.</span>
+              <span>Charts that make risk and improvement obvious.</span>
             </li>
             <li>
               <strong>Report</strong>
-              <span>Export insights as Word or PDF.</span>
+              <span>Insights as Word or PDF — ready to brief someone.</span>
             </li>
           </ul>
+          <button type="button" className="landing-inline-link" onClick={openDemo}>
+            See how the story plays out ↓
+          </button>
         </div>
       </section>
 
@@ -326,11 +338,12 @@ export default function App() {
         <div className="input-section">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Start</p>
-              <h2>Upload a file, or try an example.</h2>
+              <p className="eyebrow">Your turn</p>
+              <h2>Now run the same story on your data.</h2>
             </div>
             <p>
-              One upload. One results page. Your data is not stored after the session.
+              Upload a file or pick an example. You’ll land on one results page — dataset,
+              visualization, report — connected exactly as the demo showed.
             </p>
           </div>
           <div className="input-container">
