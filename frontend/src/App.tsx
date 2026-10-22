@@ -60,6 +60,7 @@ export default function App() {
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
+  const processStartedAt = useRef(0)
 
   useEffect(() => {
     const load = async () => {
@@ -101,7 +102,10 @@ export default function App() {
     })
   }
 
-  const finishToWorkspace = (patch: Partial<AppState>) => {
+  const finishToWorkspace = async (patch: Partial<AppState>) => {
+    const elapsed = Date.now() - processStartedAt.current
+    const wait = Math.max(0, 5200 - elapsed)
+    if (wait > 0) await new Promise((resolve) => window.setTimeout(resolve, wait))
     setState((s) => ({
       ...s,
       ...patch,
@@ -117,6 +121,7 @@ export default function App() {
   }
 
   const handleArchetypeSelect = async (archetype: string) => {
+    processStartedAt.current = Date.now()
     setRoute("processing")
     setWorkspacePage("dataset")
     setState((s) => ({
@@ -127,21 +132,27 @@ export default function App() {
       cleaning: null,
       profile: null,
       scanProgress: null,
-      scanLog: ["Example selected", "Loading prepared dataset", "Running comparison"],
+      scanLog: [
+        "Example selected",
+        "Understand the dataset",
+        "Choose cleaning / comparison tactics",
+        "Running fair scoreboard",
+      ],
       processMode: "server",
       result: null,
       sourceLabel: archetype.replace(/_/g, " "),
     }))
     try {
       const result = await api.optimize({ archetype })
-      finishToWorkspace({
+      await finishToWorkspace({
         result,
         sourceLabel: result.dataset_name || archetype.replace(/_/g, " "),
         scanLog: [
           "Example selected",
-          "Loading prepared dataset",
-          "Running comparison",
-          "Scoreboard ready",
+          "Understand the dataset",
+          "Compare preparation options",
+          "Double-check scores",
+          "Results ready",
         ],
       })
     } catch (err) {
@@ -152,6 +163,7 @@ export default function App() {
 
   const handleFileUpload = async (file: File) => {
     const useLocal = needsLocalProcessing(file)
+    processStartedAt.current = Date.now()
     setRoute("processing")
     setWorkspacePage("dataset")
     setState((s) => ({
@@ -163,7 +175,11 @@ export default function App() {
       cleaning: null,
       profile: null,
       scanProgress: null,
-      scanLog: [`File added: ${file.name}`, "Opening document"],
+      scanLog: [
+        `File added: ${file.name}`,
+        "Understand the dataset",
+        "Choose cleaning tactics",
+      ],
       processMode: useLocal ? "local" : "server",
       sourceLabel: file.name,
     }))
@@ -177,15 +193,15 @@ export default function App() {
               scanLog: pushLog(s.scanLog, scanProgress.detail),
             })),
         })
-        finishToWorkspace({
+        await finishToWorkspace({
           cleaning,
           profile,
           result: null,
           scanLog: [
             `File added: ${file.name}`,
-            "Large-file path · cleaned in browser",
-            "Issues scanned",
-            "Repairs applied",
+            "Understand the dataset",
+            "Canonicalize aliases (US / USA / United States)",
+            "Structural repair & fills",
             "Preview prepared",
           ],
         })
@@ -194,23 +210,22 @@ export default function App() {
 
       setState((s) => ({
         ...s,
-        scanLog: pushLog(s.scanLog, "Profiling columns"),
+        scanLog: pushLog(s.scanLog, "Profiling columns & applying synonym maps"),
       }))
       const [profile, cleaning] = await Promise.all([
         api.profile(file),
         api.clean(file, "csv"),
       ])
       cleaning.metadata.processingMode = "server"
-      finishToWorkspace({
+      await finishToWorkspace({
         cleaning,
         profile,
         result: null,
         scanLog: [
           `File added: ${file.name}`,
-          "Reading structure",
-          "Scanning for issues",
-          "Repairing data",
-          "Preparing preview",
+          "Understand the dataset",
+          ...(cleaning.metadata.tactics || []).slice(0, 4).map((t) => t.tactic),
+          "Preview prepared",
         ],
       })
     } catch (err) {

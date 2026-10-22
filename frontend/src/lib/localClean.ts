@@ -4,6 +4,7 @@
  */
 
 import { CleanResponse, CsvPreview, DatasetProfile, parseCsvPreview } from "../api"
+import { standardizeValue } from "./cleanRules"
 
 export const SERVER_BODY_LIMIT = Math.floor(3.5 * 1024 * 1024)
 export const LOCAL_FILE_LIMIT = 250 * 1024 * 1024
@@ -403,13 +404,15 @@ export async function cleanLocally(
     return best
   })
 
+  const columnSamples = stats.map((col) => Array.from(col.values.keys()).slice(0, 40))
+
   report({
     stage: "repairing",
     rowsSeen: dataLineIndexes.length,
     rowsWritten: 0,
     duplicatesRemoved: 0,
     missingFilled: 0,
-    detail: "Removing duplicates and repairing empty cells…",
+    detail: "Removing duplicates, collapsing aliases (US/USA/United States), repairing cells…",
     percent: 58,
   })
 
@@ -436,10 +439,7 @@ export async function cleanLocally(
       if (value) {
         const keyName = columnKey(columns[c])
         if (keyName.includes("email")) return value.toLowerCase()
-        if (keyName.includes("country") || keyName.includes("category") || keyName.endsWith("name")) {
-          return value.replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        }
-        return value
+        return standardizeValue(value, columns[c], columnSamples[c])
       }
       missingFilled += 1
       return fills[c]
@@ -447,7 +447,7 @@ export async function cleanLocally(
 
     outParts.push(repaired.map(csvEscape).join(","))
     rowsWritten += 1
-    if (previewRows.length < 6) previewRows.push(repaired)
+    if (previewRows.length < 10) previewRows.push(repaired)
 
     if (index % 20_000 === 0) {
       report({
@@ -509,6 +509,7 @@ export async function cleanLocally(
         "streamed_local_read",
         "normalized_empty_sentinels",
         "removed_duplicate_rows",
+        "canonicalized_country_aliases",
         "filled_missing_values",
         "standardized_common_fields",
         "built_browser_csv_export",
@@ -520,6 +521,24 @@ export async function cleanLocally(
         beforeRows >= 100_000
           ? `Large-file path: ${beforeRows.toLocaleString()} rows cleaned in your browser.`
           : "Processed in your browser so large files stay within this session.",
+      datasetJudgment: `Tabular file with ${beforeRows.toLocaleString()} rows. Applied synonym collapse (US/USA/United States), structural repair, and missing fills in-browser.`,
+      tactics: [
+        {
+          tactic: "Understand dataset",
+          column: "(all)",
+          why: "Profiled missingness and field types before repair.",
+        },
+        {
+          tactic: "Geographic synonym collapse",
+          column: "(geo-like fields)",
+          why: "US / USA / United States map to one canonical label.",
+        },
+        {
+          tactic: "Imputation with retention",
+          column: "(missing cells)",
+          why: "Median/mode fills after duplicate removal.",
+        },
+      ],
     },
   }
 

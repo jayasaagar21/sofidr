@@ -170,6 +170,8 @@ export interface CleaningMetadata {
   /** server = API clean; local = browser large-file path */
   processingMode?: "server" | "local"
   scaleNote?: string
+  datasetJudgment?: string
+  tactics?: { tactic: string; column: string; why: string }[]
 }
 
 export interface CleanResponse {
@@ -286,7 +288,7 @@ function parseSteps(value: string | null): string[] {
   return value.split(/\s*(?:\||;|,)\s*/).filter(Boolean)
 }
 
-export function parseCsvPreview(csv: string, maxRows = 6): CsvPreview {
+export function parseCsvPreview(csv: string, maxRows = 10): CsvPreview {
   const parsed: string[][] = []
   let row: string[] = []
   let field = ""
@@ -492,6 +494,17 @@ export const api = {
           (headerValue(res.headers, "X-SOFIDR-Export-Format") as DataExportFormat) ||
           exportFormat,
         sourceFormat: headerValue(res.headers, "X-SOFIDR-Source-Format") || "unknown",
+        datasetJudgment: headerValue(res.headers, "X-SOFIDR-Dataset-Judgment") || "",
+        tactics: (() => {
+          const raw = headerValue(res.headers, "X-SOFIDR-Tactics")
+          if (!raw) return []
+          try {
+            const parsed = JSON.parse(raw)
+            return Array.isArray(parsed) ? parsed : []
+          } catch {
+            return []
+          }
+        })(),
       },
     }
   },

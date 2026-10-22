@@ -8,6 +8,7 @@ import {
 } from "../api"
 import { buildStoryReport } from "../lib/storyReport"
 import { downloadWordReport, printReportAsPdf } from "../lib/reportExport"
+import { buildAnalyticsFromCsv, DatasetAnalytics } from "../lib/datasetAnalytics"
 import { Button } from "./ui/Button"
 import InfoButton from "./InfoButton"
 
@@ -56,30 +57,127 @@ function BarChart({
   )
 }
 
-function PageReveal({
+const VIZ_LOAD_STEPS = [
+  "Analyzing the dataset…",
+  "Understanding numeric relationships…",
+  "Inputting cleaned fields for charts…",
+  "Selecting the best visualization strategy…",
+  "Rendering insights…",
+]
+
+const REPORT_LOAD_STEPS = [
+  "Gathering dataset judgments…",
+  "Folding in visualization findings…",
+  "Writing conclusions…",
+  "Preparing downloadable report…",
+]
+
+function StageReveal({
   title,
-  detail,
+  steps,
   onDone,
+  durationMs = 5000,
 }: {
   title: string
-  detail: string
+  steps: string[]
   onDone: () => void
+  durationMs?: number
 }) {
+  const [index, setIndex] = useState(0)
   const doneRef = React.useRef(onDone)
   doneRef.current = onDone
+
   useEffect(() => {
-    const t = window.setTimeout(() => doneRef.current(), 2200)
-    return () => window.clearTimeout(t)
-  }, [])
+    const stepMs = durationMs / steps.length
+    const timers = steps.map((_, i) =>
+      window.setTimeout(() => setIndex(i), Math.round(stepMs * i))
+    )
+    const done = window.setTimeout(() => doneRef.current(), durationMs)
+    return () => {
+      timers.forEach(window.clearTimeout)
+      window.clearTimeout(done)
+    }
+  }, [steps, durationMs])
+
+  const pct = Math.round(((index + 1) / steps.length) * 100)
 
   return (
     <div className="page-reveal" role="status" aria-live="polite">
       <span className="progress-pulse" aria-hidden="true" />
       <h2>{title}</h2>
-      <p>{detail}</p>
+      <p>{steps[index]}</p>
       <div className="process-page-bar-track">
-        <span className="page-reveal-bar" />
+        <span style={{ width: `${pct}%` }} />
       </div>
+      <ol className="process-live-steps" style={{ marginTop: "1.25rem", width: "100%" }}>
+        {steps.map((step, i) => (
+          <li
+            key={step}
+            className={i < index ? "is-done" : i === index ? "is-active" : "is-pending"}
+          >
+            <span className="process-live-marker" aria-hidden="true">
+              {i < index ? "✓" : i + 1}
+            </span>
+            <div>
+              <strong>{step}</strong>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+function Heatmap({
+  labels,
+  matrix,
+}: {
+  labels: string[]
+  matrix: number[][]
+}) {
+  if (!labels.length) return <p className="journey-caption">Need 2+ numeric columns for a heatmap.</p>
+  const size = labels.length
+  const cell = Math.max(28, Math.min(48, Math.floor(320 / size)))
+  return (
+    <div className="heatmap-wrap">
+      <div
+        className="heatmap"
+        style={{
+          gridTemplateColumns: `auto repeat(${size}, ${cell}px)`,
+        }}
+      >
+        <span />
+        {labels.map((label) => (
+          <span key={`h-${label}`} className="heatmap-col-label" title={label}>
+            {label.slice(0, 8)}
+          </span>
+        ))}
+        {labels.map((rowLabel, i) => (
+          <React.Fragment key={`r-${rowLabel}`}>
+            <span className="heatmap-row-label" title={rowLabel}>
+              {rowLabel.slice(0, 12)}
+            </span>
+            {labels.map((colLabel, j) => {
+              const value = matrix[i]?.[j] ?? 0
+              const intensity = Math.min(1, Math.abs(value))
+              const hue = value >= 0 ? 95 : 8
+              return (
+                <span
+                  key={`${rowLabel}-${colLabel}`}
+                  className="heatmap-cell"
+                  title={`${rowLabel} × ${colLabel}: ${value.toFixed(2)}`}
+                  style={{
+                    width: cell,
+                    height: cell,
+                    background: `hsla(${hue}, 70%, ${72 - intensity * 40}%, ${0.25 + intensity * 0.7})`,
+                  }}
+                />
+              )
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+      <p className="journey-caption">Correlation heatmap (−1 to 1). Brighter cells = stronger link.</p>
     </div>
   )
 }
@@ -101,12 +199,33 @@ export default function ResultsWorkspace({
   const [exportError, setExportError] = useState("")
   const [vizReady, setVizReady] = useState(false)
   const [reportReady, setReportReady] = useState(false)
+  const [analytics, setAnalytics] = useState<DatasetAnalytics | null>(null)
 
   useEffect(() => {
     if (page === "visualize") setVizReady(false)
     if (page === "report") setReportReady(false)
     window.scrollTo({ top: 0, behavior: "auto" })
   }, [page])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (!cleaning?.blob) {
+        setAnalytics(null)
+        return
+      }
+      try {
+        const text = await cleaning.blob.slice(0, 2 * 1024 * 1024).text()
+        if (!cancelled) setAnalytics(buildAnalyticsFromCsv(text))
+      } catch {
+        if (!cancelled) setAnalytics(null)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [cleaning])
 
   const story = useMemo(
     () => buildStoryReport({ optimize, profile, cleaning, sourceName }),
@@ -238,9 +357,35 @@ export default function ResultsWorkspace({
           </div>
 
           <p className="results-section-lead">
-            Scan complete. Preview the cleaned data, download it, and continue when you’re ready
-            for visualization.
+            Scan complete. Preview the first 10 cleaned rows, download the file, then continue to
+            visualization.
           </p>
+
+          {(m?.datasetJudgment || story.problem.message) && (
+            <div className="journey-approach-body">
+              <h3>Dataset judgment</h3>
+              <p>{m?.datasetJudgment || story.problem.message}</p>
+            </div>
+          )}
+
+          {!!m?.tactics?.length && (
+            <div className="tactics-list">
+              <h3>Tactics applied</h3>
+              <ul>
+                {m.tactics.slice(0, 8).map((tactic) => (
+                  <li key={`${tactic.tactic}-${tactic.column}`}>
+                    <strong>{tactic.tactic}</strong>
+                    <span>
+                      {tactic.column !== "(all)" && tactic.column !== "(missing cells)"
+                        ? `${tactic.column} · `
+                        : ""}
+                      {tactic.why}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <details
             className="scan-log"
@@ -248,7 +393,7 @@ export default function ResultsWorkspace({
             onToggle={(e) => setShowSteps((e.target as HTMLDetailsElement).open)}
           >
             <summary>
-              {showSteps ? "Hide scanning steps" : "Show scanning steps"}
+              {showSteps ? "Hide analysis steps" : "Show analysis steps"}
               <small>{scanLog.length ? `${scanLog.length} steps` : "optional"}</small>
             </summary>
             <ol>
@@ -256,9 +401,8 @@ export default function ResultsWorkspace({
                 ? scanLog
                 : m?.steps?.map((s) => s.replace(/_/g, " ")) || [
                     "File added",
-                    "Structure read",
-                    "Issues scanned",
-                    "Repairs applied",
+                    "Understand dataset",
+                    "Apply tactics",
                     "Preview prepared",
                   ]
               ).map((step, index) => (
@@ -327,7 +471,7 @@ export default function ResultsWorkspace({
             <div className="journey-preview">
               <div className="preview-heading">
                 <h3>Preview</h3>
-                <span>First {preview.rows.length} rows</span>
+                <span>First {preview.rows.length} of cleaned rows</span>
               </div>
               <div className="table-container">
                 <table>
@@ -366,9 +510,9 @@ export default function ResultsWorkspace({
       {page === "visualize" && (
         <section className="workspace-page" aria-labelledby="ws-viz">
           {!vizReady ? (
-            <PageReveal
+            <StageReveal
               title="Building visualization"
-              detail="Turning scan findings into clear charts…"
+              steps={VIZ_LOAD_STEPS as unknown as string[]}
               onDone={() => setVizReady(true)}
             />
           ) : (
@@ -380,29 +524,79 @@ export default function ResultsWorkspace({
                 </div>
                 <InfoButton title="How we choose these charts">
                   <p>
-                    Charts highlight where problems concentrated and what quality looks like after
-                    cleaning. Decorative charts that do not help a decision are left out.
+                    After cleaning, we inspect numeric relationships (correlation heatmap), skew,
+                    IQR outliers, and strong “neighbor” pairs — plus issue and quality views — so
+                    you can judge the data before the report.
                   </p>
                 </InfoButton>
               </div>
               <p className="results-section-lead">
-                Same motion as the scan — now focused on patterns. Continue when you’re ready for
-                the report.
+                Heatmap, correlations, skew, outliers, and neighbors from the cleaned file.
               </p>
+
+              <div className="viz-panel">
+                <h3>Correlation heatmap</h3>
+                <Heatmap
+                  labels={analytics?.corrLabels || []}
+                  matrix={analytics?.correlationMatrix || []}
+                />
+              </div>
+
               <div className="viz-grid-2">
+                <div className="viz-panel">
+                  <h3>Strong neighbors (similar movers)</h3>
+                  <BarChart
+                    items={(analytics?.neighbors || []).map((p) => ({
+                      label: `${p.left} ↔ ${p.right}`,
+                      value: Math.abs(p.value),
+                      highlight: Math.abs(p.value) >= 0.7,
+                    }))}
+                    max={1}
+                    valueFormat={(v) => v.toFixed(2)}
+                  />
+                </div>
+                <div className="viz-panel">
+                  <h3>Skew ratios</h3>
+                  <BarChart
+                    items={(analytics?.skew || []).slice(0, 8).map((s) => ({
+                      label: s.column,
+                      value: Math.abs(s.skew),
+                      highlight: Math.abs(s.skew) >= 1,
+                    }))}
+                    valueFormat={(v) => v.toFixed(2)}
+                  />
+                  <p className="journey-caption">Higher bars = more asymmetric distributions.</p>
+                </div>
+              </div>
+
+              <div className="viz-grid-2">
+                <div className="viz-panel">
+                  <h3>Outliers (IQR canyons)</h3>
+                  <BarChart
+                    items={(analytics?.outliers || []).slice(0, 8).map((o) => ({
+                      label: o.column,
+                      value: o.count,
+                      highlight: o.pct >= 5,
+                    }))}
+                    valueFormat={(v) => String(Math.round(v))}
+                  />
+                  <p className="journey-caption">Count of points beyond 1.5× IQR fences.</p>
+                </div>
                 <div className="viz-panel">
                   <h3>Where attention is needed</h3>
                   <BarChart items={issueBars} max={100} valueFormat={(v) => `${v.toFixed(1)}%`} />
                 </div>
-                <div className="viz-panel">
-                  <h3>{scoreboardBars.length ? "Preparation scores" : "Quality view"}</h3>
-                  <BarChart
-                    items={scoreboardBars.length ? scoreboardBars : qualityBars}
-                    max={scoreboardBars.length ? undefined : 100}
-                    valueFormat={(v) => (scoreboardBars.length ? v.toFixed(3) : v.toFixed(1))}
-                  />
-                </div>
               </div>
+
+              <div className="viz-panel">
+                <h3>{scoreboardBars.length ? "Preparation scores" : "Quality view"}</h3>
+                <BarChart
+                  items={scoreboardBars.length ? scoreboardBars : qualityBars}
+                  max={scoreboardBars.length ? undefined : 100}
+                  valueFormat={(v) => (scoreboardBars.length ? v.toFixed(3) : v.toFixed(1))}
+                />
+              </div>
+
               <div className="journey-nav">
                 <Button variant="secondary" onClick={() => onPageChange("dataset")}>
                   ← Dataset
@@ -419,10 +613,11 @@ export default function ResultsWorkspace({
       {page === "report" && (
         <section className="workspace-page" aria-labelledby="ws-report">
           {!reportReady ? (
-            <PageReveal
+            <StageReveal
               title="Generating report"
-              detail="Combining the dataset and visualizations into an insight report…"
+              steps={REPORT_LOAD_STEPS as unknown as string[]}
               onDone={() => setReportReady(true)}
+              durationMs={4200}
             />
           ) : (
             <>
@@ -468,6 +663,34 @@ export default function ResultsWorkspace({
                       <span>{insight.detail}</span>
                     </li>
                   ))}
+                  {analytics?.neighbors?.[0] && (
+                    <li>
+                      <strong>Strongest numeric neighbors</strong>
+                      <span>
+                        {analytics.neighbors[0].left} and {analytics.neighbors[0].right} move
+                        together (|r|={Math.abs(analytics.neighbors[0].value).toFixed(2)}). Treat
+                        them as one story when briefing stakeholders.
+                      </span>
+                    </li>
+                  )}
+                  {analytics?.skew?.[0] && Math.abs(analytics.skew[0].skew) >= 1 && (
+                    <li>
+                      <strong>Skewed field to watch</strong>
+                      <span>
+                        {analytics.skew[0].column} is highly skewed (skew=
+                        {analytics.skew[0].skew}). Medians and robust prep beat raw averages here.
+                      </span>
+                    </li>
+                  )}
+                  {analytics?.outliers?.[0] && (
+                    <li>
+                      <strong>Outlier canyon</strong>
+                      <span>
+                        {analytics.outliers[0].column} has {analytics.outliers[0].count} IQR
+                        outliers ({analytics.outliers[0].pct}%). Review before locking KPIs.
+                      </span>
+                    </li>
+                  )}
                 </ol>
                 <h4>Next actions</h4>
                 <ol className="report-insight-list">
@@ -487,7 +710,7 @@ export default function ResultsWorkspace({
                   Download Word (editable)
                 </Button>
                 <Button variant="secondary" onClick={() => printReportAsPdf(story, sourceName)}>
-                  Save as PDF
+                  Save as PDF / Print
                 </Button>
               </div>
 

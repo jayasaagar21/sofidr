@@ -1,13 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { ScanProgress } from "../lib/localClean"
-
-const FALLBACK_STEPS = [
-  { title: "File added", detail: "Your document is in this session." },
-  { title: "Reading structure", detail: "Parsing rows and columns." },
-  { title: "Scanning for issues", detail: "Checking blanks, duplicates, and odd values." },
-  { title: "Repairing data", detail: "Cleaning and standardizing fields." },
-  { title: "Preparing preview", detail: "Building your downloadable result." },
-]
+import { STRATEGY_STAGES } from "../lib/cleanRules"
 
 interface ProcessingPageProps {
   fileName: string
@@ -16,6 +9,7 @@ interface ProcessingPageProps {
   onCancel: () => void
 }
 
+/** ~5 second staged breakdown of strategy + cleaning before results. */
 export default function ProcessingPage({
   fileName,
   progress,
@@ -25,26 +19,29 @@ export default function ProcessingPage({
   const [tick, setTick] = useState(0)
 
   useEffect(() => {
-    if (progress) return
     const id = window.setInterval(() => {
-      setTick((t) => Math.min(t + 1, FALLBACK_STEPS.length - 1))
-    }, 1100)
+      setTick((t) => Math.min(t + 1, STRATEGY_STAGES.length - 1))
+    }, 1000)
     return () => window.clearInterval(id)
-  }, [progress])
+  }, [])
 
-  const activeIndex = progress
-    ? progress.stage === "reading"
-      ? 1
-      : progress.stage === "scanning"
-        ? 2
-        : progress.stage === "repairing"
-          ? 3
-          : progress.stage === "enhancing"
-            ? 3
-            : 4
-    : tick
+  const fromProgress =
+    progress == null
+      ? -1
+      : progress.stage === "reading"
+        ? 0
+        : progress.stage === "scanning"
+          ? 1
+          : progress.stage === "repairing"
+            ? 2
+            : progress.stage === "enhancing"
+              ? 3
+              : 4
 
-  const percent = progress?.percent ?? Math.min(92, 12 + activeIndex * 18)
+  const activeIndex = Math.max(tick, fromProgress === -1 ? tick : fromProgress)
+  const percent = progress?.percent
+    ? Math.max(progress.percent, Math.round(((activeIndex + 1) / STRATEGY_STAGES.length) * 100))
+    : Math.min(96, Math.round(((activeIndex + 1) / STRATEGY_STAGES.length) * 92))
 
   return (
     <div className="process-page">
@@ -60,15 +57,15 @@ export default function ProcessingPage({
           <span className="process-file-icon" aria-hidden="true" />
           <div>
             <strong>{fileName || "Your file"}</strong>
-            <small>Added · scanning now</small>
+            <small>Added · understanding & cleaning</small>
           </div>
           <span className="process-file-pulse" aria-hidden="true" />
         </div>
 
-        <h1>Scanning your data</h1>
+        <h1>Analyzing your dataset</h1>
         <p className="process-page-lead">
-          Watch each step as SOFIDR analyzes the file. When this finishes, you’ll move to the
-          results pages.
+          SOFIDR judges the data, picks cleaning tactics, and applies them step by step. This
+          breakdown runs for a few seconds — then you land on the cleaned output.
         </p>
 
         <div
@@ -82,8 +79,8 @@ export default function ProcessingPage({
         </div>
         <p className="process-page-pct">{percent}%</p>
 
-        <ol className="process-live-steps" aria-label="Analysis steps">
-          {FALLBACK_STEPS.map((step, index) => {
+        <ol className="process-live-steps" aria-label="Strategy and cleaning steps">
+          {STRATEGY_STAGES.map((step, index) => {
             const status =
               index < activeIndex ? "done" : index === activeIndex ? "active" : "pending"
             return (
@@ -94,9 +91,7 @@ export default function ProcessingPage({
                 <div>
                   <strong>{step.title}</strong>
                   <p>
-                    {status === "active" && progress?.detail
-                      ? progress.detail
-                      : step.detail}
+                    {status === "active" && progress?.detail ? progress.detail : step.detail}
                   </p>
                 </div>
               </li>

@@ -13,6 +13,7 @@ Environment variables (set in Vercel config, or a .env for local dev):
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -85,6 +86,8 @@ app.add_middleware(
         "X-SOFIDR-Cleaning-Steps",
         "X-SOFIDR-Export-Format",
         "X-SOFIDR-Source-Format",
+        "X-SOFIDR-Dataset-Judgment",
+        "X-SOFIDR-Tactics",
     ],
 )
 
@@ -517,6 +520,8 @@ async def clean_dataset(
         "X-SOFIDR-Cleaning-Steps": ",".join(steps),
         "X-SOFIDR-Export-Format": export_format,
         "X-SOFIDR-Source-Format": source_ext,
+        "X-SOFIDR-Dataset-Judgment": (result.dataset_judgment or "")[:500],
+        "X-SOFIDR-Tactics": json.dumps(result.tactics[:24], ensure_ascii=True),
     }
     return StreamingResponse(
         iter([payload]),
