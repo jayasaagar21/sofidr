@@ -2951,6 +2951,105 @@ a:focus-visible {
   padding-bottom: 4rem;
 }
 
+.intro-hero {
+  min-height: min(78vh, 720px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.intro-title {
+  max-width: none;
+}
+
+.intro-brand {
+  display: inline-block;
+  background: linear-gradient(105deg, #f7f6f2 0%, #c9f76f 45%, #f7f6f2 90%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: introBrandShine 2.8s ease both;
+}
+
+.intro-expand {
+  margin: 1.25rem 0 0;
+  max-width: 640px;
+  color: var(--acid);
+  font-size: clamp(0.95rem, 1.8vw, 1.15rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+}
+
+.intro-fade {
+  animation: introRise 0.7s ease both;
+}
+
+.intro-fade-delay {
+  animation: introRise 0.75s ease 0.18s both;
+}
+
+.intro-fade-delay-2 {
+  animation: introRise 0.8s ease 0.36s both;
+}
+
+.intro-fade-delay-3 {
+  animation: introRise 0.8s ease 0.52s both;
+}
+
+.intro-hero .tagline {
+  margin-top: 1.35rem;
+}
+
+.landing-block-soft {
+  background: rgba(201, 247, 111, 0.03);
+}
+
+@keyframes introRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes introBrandShine {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
+    background-position: 100% 50%;
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    background-position: 0% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-brand,
+  .intro-fade,
+  .intro-fade-delay,
+  .intro-fade-delay-2,
+  .intro-fade-delay-3 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    color: var(--ink);
+    background: none;
+    -webkit-background-clip: unset;
+    background-clip: unset;
+  }
+}
+
 .landing-block {
   padding: 0 1.5rem;
   border-top: 1px solid var(--line);

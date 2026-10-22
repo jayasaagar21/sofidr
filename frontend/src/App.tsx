@@ -322,6 +322,7 @@ export default function App() {
             <span>SOFIDR</span>
           </a>
           <div className="nav-links">
+            <a href="#intro">Intro</a>
             <a href="#problem">Problem</a>
             <a href="#solution">Solution</a>
             <a href="#demo">Demo</a>
@@ -331,53 +332,65 @@ export default function App() {
           </div>
         </nav>
 
-        <div className="hero" id="problem">
-          <p className="eyebrow">Chapter 0 · The problem</p>
-          <h1>
-            Messy data
-            <br />
-            slows decisions.
+        <div className="hero intro-hero" id="intro">
+          <p className="eyebrow intro-fade">What is SOFIDR</p>
+          <h1 className="intro-title">
+            <span className="intro-brand">SOFIDR</span>
           </h1>
-          <p className="tagline">
-            Spreadsheets arrive with blanks, duplicates, and unclear fields. Teams argue over
-            numbers instead of acting on them — and nobody trusts the file enough to decide.
+          <p className="intro-expand intro-fade-delay">
+            Strategic Optimization Framework for Iterative Data Regeneration
           </p>
-          <div className="hero-actions">
-            <button type="button" className="hero-cta" onClick={openDemo}>
-              Watch the story <span aria-hidden="true">↓</span>
-            </button>
+          <p className="tagline intro-fade-delay-2">
+            SOFIDR cleans messy spreadsheets, shows what matters visually, and gives you a clear
+            report. We built it so teams can trust their data and decide faster — in one session,
+            with nothing stored afterward.
+          </p>
+          <div className="hero-actions intro-fade-delay-3">
+            <a className="hero-cta" href="#problem">
+              See the problem <span aria-hidden="true">↓</span>
+            </a>
             <a className="hero-secondary" href="#start">
-              Skip to start
+              Start now
             </a>
           </div>
         </div>
       </header>
 
-      <section className="landing-block" id="solution" aria-labelledby="solution-heading">
+      <section className="landing-block" id="problem" aria-labelledby="problem-heading">
         <div className="landing-inner">
-          <p className="eyebrow">Then · The solution</p>
-          <h2 id="solution-heading">Turn that file into a decision story.</h2>
+          <p className="eyebrow">Problem</p>
+          <h2 id="problem-heading">Messy data slows decisions.</h2>
           <p>
-            SOFIDR takes the messy upload and walks it forward: repair the dataset, show what
-            matters visually, then hand you a report you can edit and share — all in one session,
-            with nothing stored afterward.
+            Spreadsheets arrive with blanks, duplicates, and unclear fields. Teams argue over
+            numbers instead of acting on them — and nobody trusts the file enough to decide.
+          </p>
+        </div>
+      </section>
+
+      <section className="landing-block landing-block-soft" id="solution" aria-labelledby="solution-heading">
+        <div className="landing-inner">
+          <p className="eyebrow">Solution</p>
+          <h2 id="solution-heading">Clean the file. See the story. Take the report.</h2>
+          <p>
+            Upload once. SOFIDR repairs the dataset, highlights what matters in simple charts, and
+            builds an insight report you can download as Word or PDF.
           </p>
           <ul className="landing-points">
             <li>
               <strong>Dataset</strong>
-              <span>A cleaner file you can preview and download.</span>
+              <span>Preview and download a cleaner file.</span>
             </li>
             <li>
               <strong>Visualization</strong>
-              <span>Charts that make risk and improvement obvious.</span>
+              <span>See issues and quality at a glance.</span>
             </li>
             <li>
               <strong>Report</strong>
-              <span>Insights as Word or PDF — ready to brief someone.</span>
+              <span>Insights ready to share and edit.</span>
             </li>
           </ul>
           <button type="button" className="landing-inline-link" onClick={openDemo}>
-            See how the story plays out ↓
+            Watch the demo ↓
           </button>
         </div>
       </section>
