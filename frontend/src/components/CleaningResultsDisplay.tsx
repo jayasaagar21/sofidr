@@ -3,6 +3,7 @@ import { api, CleanResponse, DataExportFormat, DatasetProfile } from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
 import DatasetProfileDisplay from "./DatasetProfileDisplay"
+import ShareSummary from "./ShareSummary"
 
 interface CleaningResultsDisplayProps {
   result: CleanResponse
@@ -47,6 +48,8 @@ export default function CleaningResultsDisplay({
     window.setTimeout(() => URL.revokeObjectURL(url), 0)
   }
 
+  const isLocal = result.metadata.processingMode === "local"
+
   const download = async (format: DataExportFormat) => {
     if (!sourceFile) {
       if (format === "csv") downloadBlob(result.blob, result.metadata.filename)
@@ -57,6 +60,12 @@ export default function CleaningResultsDisplay({
     try {
       if (format === "csv" && result.metadata.exportFormat === "csv") {
         downloadBlob(result.blob, result.metadata.filename)
+        return
+      }
+      if (isLocal) {
+        setExportError(
+          "Large files cleaned in your browser export as CSV. Download CSV, or convert that file to Excel/JSON in your spreadsheet tool."
+        )
         return
       }
       const exported = await api.clean(sourceFile, format)
@@ -76,16 +85,30 @@ export default function CleaningResultsDisplay({
       <button className="back-button" onClick={onReset}>← Process another dataset</button>
 
       <Card className="results-header cleaning-header">
-        <p className="eyebrow">Enhancement complete</p>
+        <p className="eyebrow">Cleaning complete</p>
         <div className="header-top">
           <div>
             <h1>{sourceName}</h1>
             <p className="result-subtitle">
-              SOFIDR cleaned and enhanced the full dataset. Download the result in CSV, Excel, or JSON.
+              {isLocal
+                ? "SOFIDR scanned and cleaned this large file in your browser. Download the cleaned CSV and share a short summary if you like."
+                : "SOFIDR scanned and cleaned the full dataset in this session. Download CSV, Excel, or JSON — nothing is stored afterward."}
             </p>
+            {result.metadata.scaleNote && (
+              <p className="scale-note">{result.metadata.scaleNote}</p>
+            )}
           </div>
-          <span className="artifact-ready">Enhanced dataset ready</span>
+          <span className="artifact-ready">
+            {isLocal ? "Large-file clean ready" : "Cleaned dataset ready"}
+          </span>
         </div>
+        <p className="session-privacy-note">
+          Session only: your data was processed for this visit and is not saved on our side.
+        </p>
+      </Card>
+
+      <Card className="share-summary-card">
+        <ShareSummary sourceName={sourceName} cleaning={result} />
       </Card>
 
       {profile && <DatasetProfileDisplay profile={profile} />}
@@ -232,12 +255,22 @@ export default function CleaningResultsDisplay({
               key={format}
               variant={format === "csv" ? "primary" : "secondary"}
               onClick={() => download(format)}
-              disabled={exportLoading !== null}
+              disabled={exportLoading !== null || (isLocal && format !== "csv")}
+              title={
+                isLocal && format !== "csv"
+                  ? "Large-file path exports CSV only"
+                  : undefined
+              }
             >
               {exportLoading === format ? `Preparing ${label}…` : `Download ${label}`}
             </Button>
           ))}
         </div>
+        {isLocal && (
+          <p className="file-output-note">
+            Large-file cleans export CSV from your browser. Excel/JSON stay available for smaller uploads.
+          </p>
+        )}
         {exportError && <p className="report-export-error" role="alert">{exportError}</p>}
       </Card>
 

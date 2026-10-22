@@ -167,6 +167,9 @@ export interface CleaningMetadata {
   steps: string[]
   exportFormat: DataExportFormat
   sourceFormat: string
+  /** server = API clean; local = browser large-file path */
+  processingMode?: "server" | "local"
+  scaleNote?: string
 }
 
 export interface CleanResponse {

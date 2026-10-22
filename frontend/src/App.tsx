@@ -6,7 +6,15 @@ import ResultsDisplay from "./components/ResultsDisplay"
 import GuidedProcessDemo from "./components/GuidedProcessDemo"
 import AnalysisProgress from "./components/AnalysisProgress"
 import CleaningResultsDisplay from "./components/CleaningResultsDisplay"
+import PrivacyTrust from "./components/PrivacyTrust"
+import {
+  ScanProgress,
+  buildClassificationSample,
+  cleanLocally,
+  needsLocalProcessing,
+} from "./lib/localClean"
 import "./App.css"
+
 interface AppState {
   loading: boolean
   error: string
@@ -19,6 +27,8 @@ interface AppState {
   enhancementError: string
   cleaning: CleanResponse | null
   profile: DatasetProfile | null
+  scanProgress: ScanProgress | null
+  processMode: "server" | "local" | null
 }
 
 export default function App() {
@@ -34,11 +44,12 @@ export default function App() {
     enhancementError: "",
     cleaning: null,
     profile: null,
+    scanProgress: null,
+    processMode: null,
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Load metadata on mount
   useEffect(() => {
     const load = async () => {
       try {
@@ -70,6 +81,8 @@ export default function App() {
       enhancementError: "",
       cleaning: null,
       profile: null,
+      scanProgress: null,
+      processMode: "server",
     }))
     try {
       const result = await api.optimize({ archetype })
@@ -81,6 +94,7 @@ export default function App() {
   }
 
   const handleFileUpload = async (file: File) => {
+    const useLocal = needsLocalProcessing(file)
     setState((s) => ({
       ...s,
       loading: true,
@@ -92,14 +106,32 @@ export default function App() {
       enhancementError: "",
       cleaning: null,
       profile: null,
+      scanProgress: null,
+      processMode: useLocal ? "local" : "server",
     }))
     try {
-      // Profiling measures dataset conditions without changing the dataset.
-      // The human-cleaning artifact remains a separate, explicit output.
+      if (useLocal) {
+        const { cleaning, profile } = await cleanLocally(file, {
+          onProgress: (scanProgress) =>
+            setState((s) => ({ ...s, scanProgress })),
+        })
+        setState((s) => ({
+          ...s,
+          cleaning,
+          profile,
+          result: null,
+          loading: false,
+          error: "",
+          scanProgress: null,
+        }))
+        return
+      }
+
       const [profile, cleaning] = await Promise.all([
         api.profile(file),
         api.clean(file, "csv"),
       ])
+      cleaning.metadata.processingMode = "server"
       setState((s) => ({
         ...s,
         cleaning,
@@ -107,10 +139,11 @@ export default function App() {
         result: null,
         loading: false,
         error: "",
+        scanProgress: null,
       }))
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error"
-      setState((s) => ({ ...s, error: msg, loading: false }))
+      setState((s) => ({ ...s, error: msg, loading: false, scanProgress: null }))
     }
   }
 
@@ -123,9 +156,25 @@ export default function App() {
       result: null,
       enhancement: null,
       enhancementError: "",
+      processMode: state.processMode || "server",
     }))
     try {
-      const result = await api.optimize({ file: state.sourceFile, target_column: targetColumn })
+      const fileForOptimize =
+        state.processMode === "local"
+          ? await buildClassificationSample(state.sourceFile)
+          : state.sourceFile
+      const result = await api.optimize({
+        file: fileForOptimize,
+        target_column: targetColumn,
+      })
+      if (state.processMode === "local") {
+        result.selection_reason = [
+          result.selection_reason,
+          "Compared on a stratified sample of this large file so classification stays fast; your full cleaned CSV is still the download above.",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      }
       setState((s) => ({ ...s, result, loading: false }))
     } catch (err) {
       const message = err instanceof Error ? err.message : "SOFIDR could not evaluate this target"
@@ -135,6 +184,14 @@ export default function App() {
 
   const handleApplyRecommendation = async () => {
     if (!state.sourceFile || !state.result) return
+    if (state.processMode === "local") {
+      setState((s) => ({
+        ...s,
+        enhancementError:
+          "For large local cleans, download the cleaned CSV above. Formation re-apply on the full million-row file stays in your browser export.",
+      }))
+      return
+    }
     setState((s) => ({ ...s, enhancementLoading: true, enhancementError: "" }))
     try {
       const enhancement = await api.enhance(
@@ -180,6 +237,8 @@ export default function App() {
       enhancementError: "",
       cleaning: null,
       profile: null,
+      scanProgress: null,
+      processMode: null,
     }))
   }
 
@@ -193,29 +252,34 @@ export default function App() {
           </a>
           <div className="nav-meta">
             <span className="status-dot" aria-hidden="true"></span>
-            Analysis engine online
+            Ready · session-only processing
           </div>
         </nav>
         <div className="hero">
           <p className="eyebrow">Make your data easier to use</p>
           <h1>Start with cleaner data.<br />Make better decisions.</h1>
           <p className="tagline">
-            Upload a spreadsheet to find and fix common data problems. If your data
-            includes categories to predict, SOFIDR can also compare the best ways to prepare it.
+            Upload a spreadsheet. Watch SOFIDR scan it, clean it, and hand you a
+            ready-to-download file — from small sheets to about a million CSV rows.
+            Nothing is stored after you leave.
           </p>
           <div className="hero-actions">
             <button type="button" className="hero-cta" onClick={exploreBenchmark}>
-              See an example <span aria-hidden="true">↓</span>
+              See how it works <span aria-hidden="true">↓</span>
             </button>
-            <span>Clear results · downloadable files</span>
+            <a className="hero-secondary" href="#analysis">
+              Clean a file
+            </a>
           </div>
-          <div className="hero-proof" aria-label="SOFIDR methodology">
-            <span><strong>CSV, Excel & JSON</strong> supported</span>
-            <span><strong>Your file</strong> stays in this session</span>
-            <span><strong>Clear results</strong> at every step</span>
+          <div className="hero-proof" aria-label="SOFIDR promises">
+            <span><strong>Up to ~1M rows</strong> via CSV/TSV</span>
+            <span><strong>Not stored</strong> after this session</span>
+            <span><strong>Shareable</strong> result summary</span>
           </div>
         </div>
       </header>
+
+      <PrivacyTrust />
 
       <section className="intro" aria-labelledby="intro-heading">
         <div className="intro-inner">
@@ -223,8 +287,8 @@ export default function App() {
           <h2 id="intro-heading">Better data, without the guesswork.</h2>
           <p>
             SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
-            helps you understand, clean, and improve your data. It shows what it found,
-            what changed, and gives you a ready-to-download result.
+            shows what it scanned, what it fixed, and gives you a cleaned dataset you can
+            download. Optional: compare preparation strategies when you have a category to predict.
           </p>
         </div>
       </section>
@@ -232,7 +296,7 @@ export default function App() {
       <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusBenchmarkPicker} />
 
       <main className="app-main" id="analysis">
-        {state.cleaning ? (
+        {state.cleaning && !state.result ? (
           <CleaningResultsDisplay
             result={state.cleaning}
             sourceFile={state.sourceFile}
@@ -254,6 +318,8 @@ export default function App() {
             profile={state.profile}
             onApplyRecommendation={handleApplyRecommendation}
             onReset={resetAnalysis}
+            cleaning={state.cleaning}
+            sourceName={state.sourceFile?.name || state.result.dataset_name}
           />
         ) : (
           <div className="input-section">
@@ -263,7 +329,7 @@ export default function App() {
                 <h2>Choose what you want to do.</h2>
               </div>
               <p>
-                Start with your own file to clean and improve it, or try a prepared
+                Start with your own file to scan and clean it, or try a prepared
                 example to see how SOFIDR works before uploading anything.
               </p>
             </div>
@@ -281,15 +347,37 @@ export default function App() {
             {state.error && <div className="error-message" role="alert">{state.error}</div>}
 
             {state.loading && (
-              <AnalysisProgress />
+              <AnalysisProgress
+                progress={state.scanProgress}
+                fileName={state.sourceFile?.name}
+                mode={state.processMode || "auto"}
+              />
             )}
           </div>
         )}
       </main>
 
       <footer className="app-footer">
-        <p>SOFIDR · Strategic Optimization Framework for Iterative Data Regeneration</p>
-        <p className="footer-copy">© 2026 Jayasaagar C</p>
+        <div className="footer-brand">
+          <p>SOFIDR · Strategic Optimization Framework for Iterative Data Regeneration</p>
+          <p className="footer-copy">© 2026 Jayasaagar C · Your data is not stored after the session</p>
+        </div>
+        <nav className="footer-links" aria-label="Connect">
+          <a
+            href="https://www.linkedin.com/in/jayasaagar-c"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            LinkedIn
+          </a>
+          <a
+            href="https://github.com/jayasaagar21"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+        </nav>
       </footer>
     </div>
   )

@@ -3,36 +3,36 @@ import { Button } from "./ui/Button"
 
 const stages = [
   {
-    title: "Understand your data",
+    title: "Scan the dataset",
     label: "See what needs attention",
     description:
-      "SOFIDR checks your file for blanks, duplicates, unusual values, and columns that may need attention.",
-    signal: "Data check",
-    value: "Clear overview",
+      "SOFIDR reads your file and checks for blanks, duplicates, unusual values, and columns that may need attention — then shows what it found in plain language.",
+    signal: "Data scan",
+    value: "Issues listed",
   },
   {
-    title: "Compare the options",
-    label: "Test what fits best",
+    title: "Clean every row",
+    label: "Get a usable file",
     description:
-      "For classification data, SOFIDR compares six proven ways to prepare the data under the same conditions.",
+      "Structure is repaired, empty cells are filled with traceable defaults, and common fields are standardized. You download a cleaned dataset — not just a report.",
+    signal: "Full clean",
+    value: "Ready CSV",
+  },
+  {
+    title: "Compare options (optional)",
+    label: "When you have a category to predict",
+    description:
+      "If your data has a category column to predict, SOFIDR can compare six proven ways to prepare it under the same conditions.",
     signal: "Fair comparison",
     value: "6 approaches",
   },
   {
-    title: "Double-check the result",
-    label: "Choose with confidence",
-    description:
-      "SOFIDR checks that the recommended option stays reliable when the data changes slightly.",
-    signal: "Reliability check",
-    value: "Checked twice",
-  },
-  {
-    title: "Download your result",
+    title: "Share the outcome",
     label: "Keep moving",
     description:
-      "Review what changed, download an improved file, and save a report when you need one.",
-    signal: "Ready to use",
-    value: "File + report",
+      "Copy a short summary of what changed, download the cleaned file, and keep working — without SOFIDR storing your data afterward.",
+    signal: "Shareable",
+    value: "Summary + file",
   },
 ]
 
@@ -67,11 +67,11 @@ export default function GuidedProcessDemo({
       <div className="process-intro">
         <p className="eyebrow">How it works</p>
         <h2 id="process-title" ref={headingRef} tabIndex={-1}>
-          From uploaded file to useful result.
+          Scan → clean → download. Step by step.
         </h2>
         <p>
-          SOFIDR explains each step in plain language, so you can see what happened
-          to your data and why.
+          Follow the journey in plain language. Large CSV files are cleaned in your
+          browser so scale stays practical — and nothing is kept after the session.
         </p>
       </div>
 

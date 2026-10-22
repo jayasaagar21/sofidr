@@ -1,8 +1,17 @@
 import React, { useState } from "react"
-import { api, OptimizeResponse, Formation, EnhanceResponse, ReportFormat, DatasetProfile } from "../api"
+import {
+  api,
+  OptimizeResponse,
+  Formation,
+  EnhanceResponse,
+  ReportFormat,
+  DatasetProfile,
+  CleanResponse,
+} from "../api"
 import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
 import DatasetProfileDisplay from "./DatasetProfileDisplay"
+import ShareSummary from "./ShareSummary"
 
 interface ResultsDisplayProps {
   result: OptimizeResponse
@@ -14,6 +23,8 @@ interface ResultsDisplayProps {
   profile: DatasetProfile | null
   onApplyRecommendation: () => void
   onReset: () => void
+  cleaning?: CleanResponse | null
+  sourceName?: string
 }
 
 export default function ResultsDisplay({
@@ -26,6 +37,8 @@ export default function ResultsDisplay({
   profile,
   onApplyRecommendation,
   onReset,
+  cleaning = null,
+  sourceName,
 }: ResultsDisplayProps) {
   const bestFormation = formations[result.best_by_sei] || {}
   const bestScore = result.scoreboard.find((item) => item.name === result.best_by_sei)
@@ -476,6 +489,14 @@ export default function ResultsDisplay({
           </div>
         </Card>
       )}
+
+      <Card className="share-summary-card">
+        <ShareSummary
+          sourceName={sourceName || result.dataset_name}
+          cleaning={cleaning}
+          optimize={result}
+        />
+      </Card>
 
       <Card className="report-export-card">
         <div className="report-export-heading">
