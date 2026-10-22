@@ -27,12 +27,12 @@ const stages = [
     value: "6 approaches",
   },
   {
-    title: "Share the outcome",
-    label: "Keep moving",
+    title: "Visualize & decide",
+    label: "Turn analysis into action",
     description:
-      "Copy a short summary of what changed, download the cleaned file, and keep working — without SOFIDR storing your data afterward.",
-    signal: "Shareable",
-    value: "Summary + file",
+      "Open Visualize for a storytelling report: the problem, why a formation won under SEI, charts across options, significant insights, and next action items — then share a summary without sending the raw file.",
+    signal: "Decision story",
+    value: "Insights + actions",
   },
 ]
 

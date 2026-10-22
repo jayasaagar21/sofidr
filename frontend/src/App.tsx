@@ -295,6 +295,36 @@ export default function App() {
 
       <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusBenchmarkPicker} />
 
+      <section className="viz-marketing" id="visualize-story" aria-labelledby="viz-marketing-heading">
+        <div className="viz-marketing-inner">
+          <p className="eyebrow">Visualization & storytelling</p>
+          <h2 id="viz-marketing-heading">From raw rows to a decision narrative.</h2>
+          <p>
+            After cleaning — and especially after comparing options — open{" "}
+            <strong>Visualize</strong> for a full storytelling report: the business problem,
+            optional repairs, why a preparation formation won under the paper’s SEI metric,
+            charts across all six options, significant insights, and next action items.
+          </p>
+          <ol className="viz-marketing-steps" aria-label="Visualize story acts">
+            <li>
+              <strong>Problem</strong>
+              <span>What the dataset is trying to say, and where risk lives.</span>
+            </li>
+            <li>
+              <strong>Method</strong>
+              <span>Terrain → Algorithm 1 cold-start → SEI scoreboard (paper weights).</span>
+            </li>
+            <li>
+              <strong>Decision</strong>
+              <span>Insights leaders can use, plus concrete next actions.</span>
+            </li>
+          </ol>
+          <a className="hero-cta viz-marketing-cta" href="#analysis">
+            Run an analysis, then Visualize
+          </a>
+        </div>
+      </section>
+
       <main className="app-main" id="analysis">
         {state.cleaning && !state.result ? (
           <CleaningResultsDisplay

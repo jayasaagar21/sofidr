@@ -12,6 +12,7 @@ import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
 import DatasetProfileDisplay from "./DatasetProfileDisplay"
 import ShareSummary from "./ShareSummary"
+import VisualizationReport from "./VisualizationReport"
 
 interface ResultsDisplayProps {
   result: OptimizeResponse
@@ -44,6 +45,19 @@ export default function ResultsDisplay({
   const bestScore = result.scoreboard.find((item) => item.name === result.best_by_sei)
   const [reportLoading, setReportLoading] = useState<ReportFormat | null>(null)
   const [reportError, setReportError] = useState("")
+  const [showVisualize, setShowVisualize] = useState(false)
+
+  if (showVisualize) {
+    return (
+      <VisualizationReport
+        optimize={result}
+        profile={profile}
+        cleaning={cleaning}
+        sourceName={sourceName || result.dataset_name}
+        onClose={() => setShowVisualize(false)}
+      />
+    )
+  }
 
   const downloadReport = async (reportFormat: ReportFormat) => {
     setReportLoading(reportFormat)
@@ -490,6 +504,20 @@ export default function ResultsDisplay({
         </Card>
       )}
 
+      <Card className="visualize-cta-card">
+        <div className="visualize-cta-copy">
+          <p className="eyebrow">Storytelling analytics</p>
+          <h3>See the full visual story of this dataset</h3>
+          <p>
+            Problem statement, why the formation won (SEI + paper Table 1), charts for every
+            option compared, significant business insights, and clear next actions.
+          </p>
+        </div>
+        <Button className="visualize-cta-btn" onClick={() => setShowVisualize(true)}>
+          Visualize
+        </Button>
+      </Card>
+
       <Card className="share-summary-card">
         <ShareSummary
           sourceName={sourceName || result.dataset_name}
@@ -504,9 +532,10 @@ export default function ResultsDisplay({
             <p className="eyebrow">Portable reports</p>
             <h3>Download the analysis in your preferred format.</h3>
           </div>
-          <span>JSON · HTML · PDF · Excel</span>
+          <span>Visualize · JSON · HTML · PDF · Excel</span>
         </div>
         <div className="report-format-actions" aria-label="Report download formats">
+          <Button onClick={() => setShowVisualize(true)}>Visualize</Button>
           {([
             ["json", "JSON"],
             ["html", "HTML"],
@@ -515,7 +544,7 @@ export default function ResultsDisplay({
           ] as const).map(([format, label]) => (
             <Button
               key={format}
-              variant={format === "pdf" ? "primary" : "secondary"}
+              variant="secondary"
               onClick={() => downloadReport(format)}
               disabled={reportLoading !== null}
             >

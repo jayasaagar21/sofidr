@@ -4,6 +4,7 @@ import { Button } from "./ui/Button"
 import { Card } from "./ui/Card"
 import DatasetProfileDisplay from "./DatasetProfileDisplay"
 import ShareSummary from "./ShareSummary"
+import VisualizationReport from "./VisualizationReport"
 
 interface CleaningResultsDisplayProps {
   result: CleanResponse
@@ -28,6 +29,7 @@ export default function CleaningResultsDisplay({
 }: CleaningResultsDisplayProps) {
   const [exportLoading, setExportLoading] = useState<DataExportFormat | null>(null)
   const [exportError, setExportError] = useState("")
+  const [showVisualize, setShowVisualize] = useState(false)
   const targetOptions = useMemo(() => {
     if (!profile) return []
     const byName = new Map(profile.columns.map((column) => [column.name, column]))
@@ -80,6 +82,17 @@ export default function CleaningResultsDisplay({
   const dimensions = (rows: number | null, columns: number | null) =>
     rows === null || columns === null ? "—" : `${rows.toLocaleString()} × ${columns}`
 
+  if (showVisualize) {
+    return (
+      <VisualizationReport
+        profile={profile}
+        cleaning={result}
+        sourceName={sourceName}
+        onClose={() => setShowVisualize(false)}
+      />
+    )
+  }
+
   return (
     <div className="results-container cleaning-results">
       <button className="back-button" onClick={onReset}>← Process another dataset</button>
@@ -105,6 +118,21 @@ export default function CleaningResultsDisplay({
         <p className="session-privacy-note">
           Session only: your data was processed for this visit and is not saved on our side.
         </p>
+      </Card>
+
+      <Card className="visualize-cta-card">
+        <div className="visualize-cta-copy">
+          <p className="eyebrow">Storytelling analytics</p>
+          <h3>Visualize what this dataset is saying</h3>
+          <p>
+            Open a guided report: the problem, optional repairs, charts of quality issues,
+            and decision-ready insights. After you compare options, this story also explains
+            why a formation won.
+          </p>
+        </div>
+        <Button className="visualize-cta-btn" onClick={() => setShowVisualize(true)}>
+          Visualize
+        </Button>
       </Card>
 
       <Card className="share-summary-card">
