@@ -619,6 +619,18 @@ a:focus-visible {
   text-decoration: underline;
 }
 
+.footer-linkedin {
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.footer-linkedin:hover {
+  color: var(--acid);
+  text-decoration: none;
+}
+
 .privacy-trust {
   padding: 0 1.5rem;
   border-bottom: 1px solid var(--line);
