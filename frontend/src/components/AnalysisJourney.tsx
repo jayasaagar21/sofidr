@@ -6,11 +6,13 @@ import {
   DatasetProfile,
   OptimizeResponse,
 } from "../api"
-import { buildStoryReport, SEI_WEIGHTS } from "../lib/storyReport"
+import { buildStoryReport } from "../lib/storyReport"
+import {
+  downloadWordReport,
+  printReportAsPdf,
+} from "../lib/reportExport"
 import { Button } from "./ui/Button"
-import ShareSummary from "./ShareSummary"
-
-type JourneyStep = 1 | 2 | 3
+import InfoButton from "./InfoButton"
 
 interface AnalysisJourneyProps {
   cleaning: CleanResponse | null
@@ -33,7 +35,9 @@ function BarChart({
   max?: number
   valueFormat?: (v: number) => string
 }) {
-  if (!items.length) return <p className="journey-empty">No chart data for this step yet.</p>
+  if (!items.length) {
+    return <p className="journey-caption">Charts appear once quality signals are available.</p>
+  }
   const ceiling = max ?? Math.max(...items.map((i) => i.value), 0.001)
   return (
     <ul className="viz-bars" aria-label="Chart">
@@ -52,12 +56,6 @@ function BarChart({
   )
 }
 
-const STEPS = [
-  { id: 1 as const, label: "Dataset", detail: "Preview & download" },
-  { id: 2 as const, label: "Visualization", detail: "See the patterns" },
-  { id: 3 as const, label: "Report", detail: "Insights & actions" },
-]
-
 export default function AnalysisJourney({
   cleaning,
   profile,
@@ -69,8 +67,6 @@ export default function AnalysisJourney({
   strategyLoading = false,
   strategyError = "",
 }: AnalysisJourneyProps) {
-  const [step, setStep] = useState<JourneyStep>(1)
-  const [maxReached, setMaxReached] = useState<JourneyStep>(1)
   const [showApproach, setShowApproach] = useState(false)
   const [exportLoading, setExportLoading] = useState<DataExportFormat | null>(null)
   const [exportError, setExportError] = useState("")
@@ -91,12 +87,6 @@ export default function AnalysisJourney({
       )
   }, [profile, onRunStrategy])
 
-  const goTo = (next: JourneyStep) => {
-    setStep(next)
-    setMaxReached((prev) => (next > prev ? next : prev))
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
-
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
@@ -107,6 +97,8 @@ export default function AnalysisJourney({
   }
 
   const isLocal = cleaning?.metadata.processingMode === "local"
+  const m = cleaning?.metadata
+  const preview = cleaning?.preview
 
   const download = async (format: DataExportFormat) => {
     if (!cleaning) return
@@ -147,410 +139,336 @@ export default function AnalysisJourney({
       highlight: row.name === story.selection?.formation,
     })) || []
 
-  const componentBars =
-    story.selection?.components.map((c) => ({
-      label: `${c.label} (${(c.weight * 100).toFixed(0)}%)`,
-      value: c.value,
-      highlight: c.key === "accuracy",
-    })) || []
-
-  const preview = cleaning?.preview
-  const m = cleaning?.metadata
+  const qualityBars = profile
+    ? Object.entries(profile.quality.dimensions).map(([label, value]) => ({
+        label: label.replace(/_/g, " "),
+        value: Number(value),
+      }))
+    : []
 
   return (
-    <div className="analysis-journey">
-      <button type="button" className="back-button" onClick={onReset}>
-        ← Start over
-      </button>
-
-      <header className="journey-header">
-        <p className="eyebrow">Your analysis</p>
+    <div className="results-page">
+      <header className="results-page-header">
+        <button type="button" className="back-button" onClick={onReset}>
+          ← Back to start
+        </button>
+        <p className="eyebrow">Your output</p>
         <h1>{sourceName}</h1>
-        <p className="journey-tagline">
-          Three simple steps. Dataset first, then charts, then the insight report.
+        <p className="results-page-lead">
+          One page. Three sections — cleaned data, a visual view, then a downloadable report.
         </p>
+        <nav className="results-page-nav" aria-label="On this page">
+          <a href="#out-dataset">Dataset</a>
+          <a href="#out-visualize">Visualization</a>
+          <a href="#out-report">Report</a>
+        </nav>
       </header>
 
-      <nav className="journey-steps" aria-label="Analysis steps">
-        {STEPS.map((item) => {
-          const reached = item.id <= maxReached
-          const current = item.id === step
-          return (
-            <button
-              key={item.id}
-              type="button"
-              className={`journey-step ${current ? "is-current" : ""} ${reached ? "is-reached" : ""}`}
-              onClick={() => reached && goTo(item.id)}
-              disabled={!reached}
-              aria-current={current ? "step" : undefined}
-            >
-              <span className="journey-step-num">{item.id}</span>
-              <span className="journey-step-copy">
-                <strong>{item.label}</strong>
-                <small>{item.detail}</small>
-              </span>
-            </button>
-          )
-        })}
-      </nav>
-
-      {step === 1 && (
-        <section className="journey-panel" aria-labelledby="step1-title">
-          <h2 id="step1-title">Step 1 · Dataset</h2>
-          <p className="journey-lead">
-            Your cleaned file is ready. Preview it below, download it, then continue when you want
-            charts and insights.
-          </p>
-
-          {m && (
-            <dl className="journey-metrics">
-              <div>
-                <dt>Rows</dt>
-                <dd>
-                  {(m.before.rows ?? 0).toLocaleString()} → {(m.after.rows ?? 0).toLocaleString()}
-                </dd>
-              </div>
-              <div>
-                <dt>Duplicates removed</dt>
-                <dd>{m.duplicatesRemoved.toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt>Blanks filled</dt>
-                <dd>{m.missingFilled.toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt>Completeness</dt>
-                <dd>
-                  {m.completenessBefore ?? "—"}% → {m.completenessAfter ?? "—"}%
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {!cleaning && optimize && (
-            <p className="journey-lead">
-              Example run for <strong>{optimize.dataset_name}</strong>
-              {optimize.target_column ? ` · predicting “${optimize.target_column}”` : ""}.
-              Continue to Visualization to see how the six formations compared.
+      {/* —— Dataset —— */}
+      <section className="results-section" id="out-dataset" aria-labelledby="out-dataset-title">
+        <div className="results-section-head">
+          <div>
+            <p className="eyebrow">Section 1</p>
+            <h2 id="out-dataset-title">Dataset</h2>
+          </div>
+          <InfoButton title="How we handled your dataset">
+            <p>
+              <strong>What we received:</strong> your uploaded file for this session only. Nothing
+              is kept after you leave.
             </p>
-          )}
-
-          <div className="journey-download-row">
-            {cleaning ? (
-              <>
-                <Button onClick={() => download("csv")} disabled={exportLoading !== null}>
-                  {exportLoading === "csv" ? "Preparing…" : "Download cleaned CSV"}
-                </Button>
-                {!isLocal && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      onClick={() => download("xlsx")}
-                      disabled={exportLoading !== null}
-                    >
-                      Excel
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      onClick={() => download("json")}
-                      disabled={exportLoading !== null}
-                    >
-                      JSON
-                    </Button>
-                  </>
-                )}
-              </>
-            ) : (
-              <p className="journey-caption">This example has no file download — focus on steps 2 and 3.</p>
-            )}
-          </div>
-          {exportError && <p className="report-export-error" role="alert">{exportError}</p>}
-
-          {preview && preview.columns.length > 0 && (
-            <div className="journey-preview">
-              <div className="preview-heading">
-                <h3>Preview</h3>
-                <span>First {preview.rows.length} rows of the cleaned dataset</span>
-              </div>
-              <div className="table-container">
-                <table>
-                  <caption className="sr-only">Cleaned dataset preview</caption>
-                  <thead>
-                    <tr>
-                      {preview.columns.map((column, index) => (
-                        <th key={`${column}-${index}`} scope="col">
-                          {column}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>
-                        {preview.columns.map((_, columnIndex) => (
-                          <td key={columnIndex}>{row[columnIndex] || "—"}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="journey-approach">
-            <Button variant="secondary" onClick={() => setShowApproach((v) => !v)}>
-              {showApproach ? "Hide approach summary" : "Explain the approach"}
-            </Button>
-            {showApproach && (
-              <div className="journey-approach-body" role="region" aria-label="Approach summary">
-                <h3>How SOFIDR handled this file</h3>
-                <p>{story.problem.statement}</p>
-                <p>{story.problem.message}</p>
-                {m?.steps?.length ? (
-                  <ol>
-                    {m.steps.map((stepName) => (
-                      <li key={stepName}>{stepName.replace(/_/g, " ")}</li>
-                    ))}
-                  </ol>
-                ) : null}
-                {story.selection && (
-                  <p>
-                    Recommended preparation after comparison:{" "}
-                    <strong>{story.selection.formation.replace(/_/g, " ")}</strong> (SEI{" "}
-                    {story.selection.sei?.toFixed(3) ?? "—"}) — paper terrain:{" "}
-                    {story.selection.paperTerrain}.
-                  </p>
-                )}
-                <p className="journey-caption">
-                  Session only — nothing is stored after you leave.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {onRunStrategy && targetOptions.length > 0 && (
-            <details className="journey-optional">
-              <summary>Optional: compare preparation strategies</summary>
-              <p>
-                If you have a category to predict, SOFIDR can compare six paper formations and
-                enrich Visualization + Report.
-              </p>
-              <label htmlFor="journey-target">Category column</label>
-              <select
-                id="journey-target"
-                value={targetColumn}
-                onChange={(e) => setTargetColumn(e.target.value)}
-              >
-                <option value="">Choose a column</option>
-                {targetOptions.map((column) => (
-                  <option key={column.name} value={column.name}>
-                    {column.name} · {column.n_unique} classes
-                  </option>
+            <p>
+              <strong>How we decided what to fix:</strong> we scan for empty cells, duplicate rows,
+              and messy common fields (dates, names, categories). Issues that affect many rows are
+              treated first.
+            </p>
+            <p>
+              <strong>Cleaning steps:</strong> normalize empty values, remove exact duplicates, fill
+              blanks with sensible defaults, and standardize frequent business fields so the file is
+              easier to use.
+            </p>
+            {m?.steps?.length ? (
+              <ol>
+                {m.steps.map((step) => (
+                  <li key={step}>{step.replace(/_/g, " ")}</li>
                 ))}
-              </select>
-              <Button
-                onClick={() => targetColumn && onRunStrategy(targetColumn)}
-                disabled={!targetColumn || strategyLoading}
-              >
-                {strategyLoading ? "Comparing…" : "Compare options"}
-              </Button>
-              {strategyError && <p className="report-export-error" role="alert">{strategyError}</p>}
-            </details>
-          )}
+              </ol>
+            ) : null}
+            <p>
+              Large CSV files are cleaned in your browser so they stay practical at high volume.
+              Smaller files use the same logic on the server for this session.
+            </p>
+          </InfoButton>
+        </div>
 
-          <div className="journey-nav">
-            <Button onClick={() => goTo(2)}>
-              Continue to Visualization <span aria-hidden="true">→</span>
-            </Button>
-          </div>
-        </section>
-      )}
+        <p className="results-section-lead">
+          Your cleaned output is ready. Preview it, download it, and open a short explanation if you
+          want to know what changed.
+        </p>
 
-      {step === 2 && (
-        <section className="journey-panel" aria-labelledby="step2-title">
-          <h2 id="step2-title">Step 2 · Visualization</h2>
-          <p className="journey-lead">
-            Charts that show what matters in this dataset — issues, terrain, and (when available)
-            how the six formations scored.
-          </p>
-
-          <div className="viz-grid-2">
-            <div className="viz-panel">
-              <h3>Priority issues</h3>
-              <p className="viz-caption">Share of records affected</p>
-              <BarChart items={issueBars} max={100} valueFormat={(v) => `${v.toFixed(1)}%`} />
+        {m && (
+          <dl className="journey-metrics">
+            <div>
+              <dt>Rows</dt>
+              <dd>
+                {(m.before.rows ?? 0).toLocaleString()} → {(m.after.rows ?? 0).toLocaleString()}
+              </dd>
             </div>
-            <div className="viz-panel">
-              <h3>
-                {scoreboardBars.length ? "Formation scoreboard (SEI)" : "Quality snapshot"}
-              </h3>
-              {scoreboardBars.length ? (
+            <div>
+              <dt>Duplicates removed</dt>
+              <dd>{m.duplicatesRemoved.toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt>Blanks filled</dt>
+              <dd>{m.missingFilled.toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt>Completeness</dt>
+              <dd>
+                {m.completenessBefore ?? "—"}% → {m.completenessAfter ?? "—"}%
+              </dd>
+            </div>
+          </dl>
+        )}
+
+        <div className="journey-download-row">
+          {cleaning ? (
+            <>
+              <Button onClick={() => download("csv")} disabled={exportLoading !== null}>
+                {exportLoading === "csv" ? "Preparing…" : "Download cleaned data"}
+              </Button>
+              {!isLocal && (
                 <>
-                  <p className="viz-caption">
-                    Higher SEI is better · weights: accuracy {(SEI_WEIGHTS.accuracy * 100) | 0}% ·
-                    stability {(SEI_WEIGHTS.stability * 100) | 0}% · retention{" "}
-                    {(SEI_WEIGHTS.retention * 100) | 0}% · simplicity{" "}
-                    {(SEI_WEIGHTS.simplicity * 100) | 0}%
-                  </p>
-                  <BarChart items={scoreboardBars} />
-                </>
-              ) : (
-                <>
-                  <p className="viz-caption">
-                    Quality score: {story.problem.qualityScore ?? "—"} (
-                    {story.problem.qualityLabel || "n/a"})
-                  </p>
-                  <BarChart
-                    items={
-                      profile
-                        ? Object.entries(profile.quality.dimensions).map(([label, value]) => ({
-                            label: label.replace(/_/g, " "),
-                            value: Number(value),
-                          }))
-                        : []
-                    }
-                    max={100}
-                    valueFormat={(v) => v.toFixed(1)}
-                  />
+                  <Button
+                    variant="secondary"
+                    onClick={() => download("xlsx")}
+                    disabled={exportLoading !== null}
+                  >
+                    Excel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => download("json")}
+                    disabled={exportLoading !== null}
+                  >
+                    JSON
+                  </Button>
                 </>
               )}
-            </div>
-          </div>
-
-          {componentBars.length > 0 && (
-            <div className="viz-panel" style={{ marginTop: "1rem" }}>
-              <h3>Why the winner looks strong — SEI components</h3>
-              <BarChart items={componentBars} />
-            </div>
-          )}
-
-          {story.selection && (
-            <p className="journey-caption" style={{ marginTop: "1rem" }}>
-              Selected: <strong>{story.selection.formation.replace(/_/g, " ")}</strong> · cold-start
-              was {story.selection.coldStart.replace(/_/g, " ")} · {story.selection.paperTerrain}
+            </>
+          ) : (
+            <p className="journey-caption">
+              Example run — continue to Visualization and Report for insights.
             </p>
           )}
+          <Button variant="secondary" onClick={() => setShowApproach((v) => !v)}>
+            {showApproach ? "Hide explanation" : "Explain this output"}
+          </Button>
+        </div>
+        {exportError && <p className="report-export-error" role="alert">{exportError}</p>}
 
-          <div className="journey-nav">
-            <Button variant="secondary" onClick={() => goTo(1)}>
-              ← Dataset
-            </Button>
-            <Button onClick={() => goTo(3)}>
-              Continue to Report <span aria-hidden="true">→</span>
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {step === 3 && (
-        <section className="journey-panel journey-report" aria-labelledby="step3-title">
-          <h2 id="step3-title">Step 3 · Report</h2>
-          <p className="journey-lead">
-            A research-style summary from steps 1 and 2 — important insights only. No raw table dump.
-          </p>
-
-          <article className="report-block">
-            <h3>Executive summary</h3>
+        {showApproach && (
+          <div className="journey-approach-body">
+            <h3>What this output means</h3>
             <p>{story.problem.statement}</p>
             <p>{story.problem.message}</p>
-          </article>
+          </div>
+        )}
 
-          {story.selection && (
-            <article className="report-block">
-              <h3>Method selected</h3>
-              <p>
-                <strong>{story.selection.formation.replace(/_/g, " ")}</strong> won on Strategic
-                Efficiency Index
-                {story.selection.sei != null ? ` (${story.selection.sei.toFixed(3)})` : ""}.{" "}
-                {story.selection.reason}
-              </p>
-              <p className="journey-caption">
-                Paper terrain: {story.selection.paperTerrain}. Techniques:{" "}
-                {story.selection.techniques.slice(0, 5).join("; ")}.
-              </p>
-            </article>
-          )}
-
-          <article className="report-block">
-            <h3>Highlight charts</h3>
-            <div className="viz-grid-2">
-              <div>
-                <p className="viz-caption">Issues</p>
-                <BarChart items={issueBars.slice(0, 5)} max={100} valueFormat={(v) => `${v.toFixed(1)}%`} />
-              </div>
-              <div>
-                <p className="viz-caption">
-                  {scoreboardBars.length ? "Formation SEI" : "Quality dimensions"}
-                </p>
-                <BarChart
-                  items={
-                    scoreboardBars.length
-                      ? scoreboardBars.slice(0, 6)
-                      : profile
-                        ? Object.entries(profile.quality.dimensions).map(([label, value]) => ({
-                            label: label.replace(/_/g, " "),
-                            value: Number(value),
-                          }))
-                        : []
-                  }
-                  max={scoreboardBars.length ? undefined : 100}
-                  valueFormat={(v) => (scoreboardBars.length ? v.toFixed(3) : v.toFixed(1))}
-                />
-              </div>
+        {preview && preview.columns.length > 0 && (
+          <div className="journey-preview">
+            <div className="preview-heading">
+              <h3>Preview</h3>
+              <span>First {preview.rows.length} rows</span>
             </div>
-          </article>
+            <div className="table-container">
+              <table>
+                <caption className="sr-only">Cleaned dataset preview</caption>
+                <thead>
+                  <tr>
+                    {preview.columns.map((column, index) => (
+                      <th key={`${column}-${index}`} scope="col">
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      {preview.columns.map((_, columnIndex) => (
+                        <td key={columnIndex}>{row[columnIndex] || "—"}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-          <article className="report-block">
-            <h3>Key insights</h3>
-            <ol className="viz-insights">
-              {story.insights.map((insight) => (
-                <li key={insight.title} className={`impact-${insight.impact}`}>
-                  <div>
-                    <span className="viz-impact">{insight.impact}</span>
-                    <h4>{insight.title}</h4>
-                  </div>
-                  <p>{insight.detail}</p>
-                </li>
+        {onRunStrategy && targetOptions.length > 0 && (
+          <details className="journey-optional">
+            <summary>Optional — compare preparation options</summary>
+            <p>If you have a category to predict, we can compare preparation approaches for the charts and report.</p>
+            <label htmlFor="journey-target">Category column</label>
+            <select
+              id="journey-target"
+              value={targetColumn}
+              onChange={(e) => setTargetColumn(e.target.value)}
+            >
+              <option value="">Choose a column</option>
+              {targetOptions.map((column) => (
+                <option key={column.name} value={column.name}>
+                  {column.name}
+                </option>
               ))}
-            </ol>
-          </article>
+            </select>
+            <Button
+              onClick={() => targetColumn && onRunStrategy(targetColumn)}
+              disabled={!targetColumn || strategyLoading}
+            >
+              {strategyLoading ? "Comparing…" : "Compare"}
+            </Button>
+            {strategyError && <p className="report-export-error" role="alert">{strategyError}</p>}
+          </details>
+        )}
+      </section>
 
-          <article className="report-block">
-            <h3>Recommended next actions</h3>
-            <ol className="viz-actions">
-              {story.actions.map((action, index) => (
-                <li key={action.title}>
-                  <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                  <div>
-                    <h4>{action.title}</h4>
-                    <p>{action.detail}</p>
-                    <small>Owner: {action.owner}</small>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </article>
+      {/* —— Visualization —— */}
+      <section className="results-section" id="out-visualize" aria-labelledby="out-viz-title">
+        <div className="results-section-head">
+          <div>
+            <p className="eyebrow">Section 2</p>
+            <h2 id="out-viz-title">Visualization</h2>
+          </div>
+          <InfoButton title="How we choose these charts">
+            <p>
+              <strong>From your dataset:</strong> we look at where problems concentrate (missing
+              values, duplicates) and at overall quality dimensions.
+            </p>
+            <p>
+              <strong>Why this format:</strong> simple bar views make it obvious which issues are
+              largest and — when you compare options — which preparation approach scores highest.
+            </p>
+            <p>
+              <strong>How we conclude:</strong> charts that highlight the biggest risks and the
+              strongest preparation score are kept. Decorative charts that do not help a decision
+              are left out.
+            </p>
+          </InfoButton>
+        </div>
 
-          <div className="report-block">
-            <ShareSummary
-              sourceName={sourceName}
-              cleaning={cleaning}
-              optimize={optimize}
+        <p className="results-section-lead">
+          Want to see how your dataset looks more visually? These charts highlight what stands out.
+        </p>
+
+        <div className="viz-grid-2">
+          <div className="viz-panel">
+            <h3>Where attention is needed</h3>
+            <BarChart items={issueBars} max={100} valueFormat={(v) => `${v.toFixed(1)}%`} />
+          </div>
+          <div className="viz-panel">
+            <h3>{scoreboardBars.length ? "Preparation scores" : "Quality view"}</h3>
+            <BarChart
+              items={scoreboardBars.length ? scoreboardBars : qualityBars}
+              max={scoreboardBars.length ? undefined : 100}
+              valueFormat={(v) => (scoreboardBars.length ? v.toFixed(3) : v.toFixed(1))}
             />
           </div>
+        </div>
+      </section>
 
-          <div className="journey-nav">
-            <Button variant="secondary" onClick={() => goTo(2)}>
-              ← Visualization
-            </Button>
-            <Button variant="secondary" onClick={() => window.print()}>
-              Print / save PDF
-            </Button>
-            <Button onClick={onReset}>Analyze another file</Button>
+      {/* —— Report —— */}
+      <section className="results-section" id="out-report" aria-labelledby="out-report-title">
+        <div className="results-section-head">
+          <div>
+            <p className="eyebrow">Section 3</p>
+            <h2 id="out-report-title">Report</h2>
           </div>
-        </section>
-      )}
+          <InfoButton title="How the report is built">
+            <p>
+              The report combines <strong>Section 1 (dataset)</strong> and{" "}
+              <strong>Section 2 (visualization)</strong>: what was wrong, what was cleaned, what the
+              charts emphasize, and what to do next.
+            </p>
+            <p>
+              It does <strong>not</strong> include the full raw table — only the insights you need
+              to brief someone or keep a record.
+            </p>
+            <p>
+              <strong>Word</strong> is best when you want to edit wording before sharing.{" "}
+              <strong>PDF</strong> is best for a fixed handout (use your system’s Save as PDF in the
+              print dialog).
+            </p>
+          </InfoButton>
+        </div>
+
+        <p className="results-section-lead">
+          Based on the dataset and visualizations above, here is a concise insight report you can
+          download and edit.
+        </p>
+
+        <article className="report-preview" id="report-preview">
+          <h3>Insight report</h3>
+          <p className="report-kicker">{sourceName}</p>
+
+          <h4>Problem</h4>
+          <p>{story.problem.statement}</p>
+          <p>{story.problem.message}</p>
+
+          {story.selection && (
+            <>
+              <h4>Approach we recommend</h4>
+              <p>
+                <strong>{story.selection.formation.replace(/_/g, " ")}</strong>
+                {story.selection.sei != null ? ` · score ${story.selection.sei.toFixed(3)}` : ""}.{" "}
+                {story.selection.reason}
+              </p>
+            </>
+          )}
+
+          <h4>Key insights</h4>
+          <ol className="report-insight-list">
+            {story.insights.map((insight) => (
+              <li key={insight.title}>
+                <strong>{insight.title}</strong>
+                <span>{insight.detail}</span>
+              </li>
+            ))}
+          </ol>
+
+          <h4>Next actions</h4>
+          <ol className="report-insight-list">
+            {story.actions.map((action) => (
+              <li key={action.title}>
+                <strong>{action.title}</strong>
+                <span>
+                  {action.detail} · {action.owner}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </article>
+
+        <div className="journey-download-row">
+          <Button onClick={() => downloadWordReport(story, sourceName)}>
+            Download Word (editable)
+          </Button>
+          <Button variant="secondary" onClick={() => printReportAsPdf(story, sourceName)}>
+            Save as PDF
+          </Button>
+        </div>
+        <p className="journey-caption">
+          Prefer to edit first? Download Word, change the text in Microsoft Word, then export PDF
+          from Word if needed.
+        </p>
+
+        <div className="journey-nav">
+          <Button variant="secondary" onClick={onReset}>
+            Analyze another file
+          </Button>
+        </div>
+      </section>
     </div>
   )
 }

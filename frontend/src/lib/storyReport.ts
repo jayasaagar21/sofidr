@@ -331,23 +331,23 @@ function deriveInsights(ctx: {
     const best = selection.scoreboard[0]
     const runner = selection.scoreboard[1]
     insights.push({
-      title: `“${pretty(selection.formation)}” is the preparation the business should standardize`,
+      title: `“${pretty(selection.formation)}” is the preparation to standardize`,
       detail: runner
-        ? `It leads on Strategic Efficiency Index (SEI ${best.sei.toFixed(3)}) versus ${pretty(runner.name)} (${runner.sei.toFixed(3)}). SEI blends accuracy (40%), stability (25%), retention (20%), and simplicity (15%) — the paper’s decision metric — so this is not a single-score vanity pick.`
-        : `Selected by SEI using the paper weights (accuracy 40%, stability 25%, retention 20%, simplicity 15%).`,
+        ? `It scores highest overall (${best.sei.toFixed(3)}) versus ${pretty(runner.name)} (${runner.sei.toFixed(3)}), balancing correctness, reliability, how much data you keep, and how simple the pipeline stays.`
+        : `It scored best across correctness, reliability, data kept, and simplicity.`,
       impact: "high",
     })
 
     if (selection.coldStart && selection.coldStart !== selection.formation) {
       insights.push({
-        title: "Cold-start intuition was challenged — and that is useful",
-        detail: `Algorithm 1 first suggested ${pretty(selection.coldStart)} from terrain rules, but the fair scoreboard preferred ${pretty(selection.formation)}. Treat the scoreboard as the governance check before locking a production pipeline.`,
+        title: "A quick guess differed from the fair comparison — useful signal",
+        detail: `A first-pass rule suggested ${pretty(selection.coldStart)}, but a side-by-side comparison preferred ${pretty(selection.formation)}. Use the comparison as the checkpoint before locking a recurring process.`,
         impact: "high",
       })
     } else if (selection.coldStart) {
       insights.push({
-        title: "Terrain rules and the scoreboard agree",
-        detail: `Algorithm 1 cold-start (${pretty(selection.coldStart)}) matches the SEI winner. That alignment raises confidence that the formation fits this data’s shape, not just a lucky fold.`,
+        title: "Quick fit and fair comparison agree",
+        detail: `The first-pass suggestion (${pretty(selection.coldStart)}) matches the top score. That alignment raises confidence the approach fits this file’s shape.`,
         impact: "medium",
       })
     }
@@ -358,19 +358,19 @@ function deriveInsights(ctx: {
       insights.push({
         title:
           stab.value + 0.02 < acc.value
-            ? "Accuracy looks strong, but stability needs watching"
-            : "Accuracy and stability move together",
+            ? "Results look strong, but consistency needs watching"
+            : "Results look strong and consistent",
         detail:
           stab.value + 0.02 < acc.value
-            ? `Stability (${stab.value.toFixed(3)}) trails accuracy (${acc.value.toFixed(3)}). Before betting budget on the model, re-check with a holdout month or a second site — brittle pipelines create silent operational risk.`
-            : `Stability (${stab.value.toFixed(3)}) keeps pace with accuracy (${acc.value.toFixed(3)}), which supports rolling this preparation into recurring decisions rather than one-off analyses.`,
+            ? `Consistency (${stab.value.toFixed(3)}) trails raw correctness (${acc.value.toFixed(3)}). Re-check on a later month or another site before betting a budget on the model.`
+            : `Consistency (${stab.value.toFixed(3)}) keeps pace with correctness (${acc.value.toFixed(3)}), which supports using this preparation for recurring decisions.`,
         impact: "high",
       })
     }
 
     insights.push({
-      title: `Why this formation fits the paper’s terrain`,
-      detail: `${pretty(selection.formation)} targets “${selection.paperTerrain}”. Techniques in play: ${selection.techniques.slice(0, 4).join("; ")}. Use this as the documented “why” when stakeholders ask why the data was prepared this way.`,
+      title: "Why this approach fits your data",
+      detail: `${pretty(selection.formation)} suits “${selection.paperTerrain}”. Steps used: ${selection.techniques.slice(0, 4).join("; ")}. That is the plain-language “why” when someone asks how the file was prepared.`,
       impact: "medium",
     })
   }
@@ -379,11 +379,11 @@ function deriveInsights(ctx: {
     const ahead = verification.deltaSei >= 0
     insights.push({
       title: ahead
-        ? "SOFIDR beats the conventional baseline on the same folds"
-        : "Conventional baseline is competitive — investigate before switching",
+        ? "This approach beats a common baseline on the same test"
+        : "A common baseline is close — review before switching",
       detail: ahead
-        ? `Delta SEI is +${verification.deltaSei.toFixed(4)} versus ${verification.conventionalLabel}. That gap is the business case for adopting the recommended formation instead of a one-size-fits-all scrub.`
-        : `Delta SEI is ${verification.deltaSei.toFixed(4)} versus ${verification.conventionalLabel}. Do not discard SOFIDR yet — inspect which SEI component lost, then decide whether to keep the formation for retention/simplicity trade-offs.`,
+        ? `Score gap versus ${verification.conventionalLabel} is +${verification.deltaSei.toFixed(4)}. That gap is the case for adopting the recommended preparation instead of a generic scrub.`
+        : `Score gap versus ${verification.conventionalLabel} is ${verification.deltaSei.toFixed(4)}. Check which part of the score lost before changing course.`,
       impact: "high",
     })
   }

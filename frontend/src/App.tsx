@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef } from "react"
-import { api, OptimizeResponse, Archetype, Formation, EnhanceResponse, CleanResponse, DatasetProfile } from "./api"
+import {
+  api,
+  OptimizeResponse,
+  Archetype,
+  Formation,
+  CleanResponse,
+  DatasetProfile,
+} from "./api"
 import ArchetypeSelector from "./components/ArchetypeSelector"
 import FileUploader from "./components/FileUploader"
 import GuidedProcessDemo from "./components/GuidedProcessDemo"
 import AnalysisProgress from "./components/AnalysisProgress"
 import AnalysisJourney from "./components/AnalysisJourney"
-import PrivacyTrust from "./components/PrivacyTrust"
 import {
   ScanProgress,
   buildClassificationSample,
@@ -21,9 +27,6 @@ interface AppState {
   archetypes: Archetype
   formations: Formation
   sourceFile: File | null
-  enhancement: EnhanceResponse | null
-  enhancementLoading: boolean
-  enhancementError: string
   cleaning: CleanResponse | null
   profile: DatasetProfile | null
   scanProgress: ScanProgress | null
@@ -38,9 +41,6 @@ export default function App() {
     archetypes: {},
     formations: {},
     sourceFile: null,
-    enhancement: null,
-    enhancementLoading: false,
-    enhancementError: "",
     cleaning: null,
     profile: null,
     scanProgress: null,
@@ -48,6 +48,7 @@ export default function App() {
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
+  const hasOutput = Boolean(state.cleaning || state.result)
 
   useEffect(() => {
     const load = async () => {
@@ -58,7 +59,6 @@ export default function App() {
         ])
         setState((s) => ({ ...s, archetypes, formations }))
       } catch (err) {
-        console.error("Failed to load metadata:", err)
         const message = err instanceof Error ? err.message : "Unknown error"
         setState((s) => ({
           ...s,
@@ -75,13 +75,11 @@ export default function App() {
       loading: true,
       error: "",
       sourceFile: null,
-      enhancement: null,
-      enhancementLoading: false,
-      enhancementError: "",
       cleaning: null,
       profile: null,
       scanProgress: null,
       processMode: "server",
+      result: null,
     }))
     try {
       const result = await api.optimize({ archetype })
@@ -100,9 +98,6 @@ export default function App() {
       error: "",
       sourceFile: file,
       result: null,
-      enhancement: null,
-      enhancementLoading: false,
-      enhancementError: "",
       cleaning: null,
       profile: null,
       scanProgress: null,
@@ -111,8 +106,7 @@ export default function App() {
     try {
       if (useLocal) {
         const { cleaning, profile } = await cleanLocally(file, {
-          onProgress: (scanProgress) =>
-            setState((s) => ({ ...s, scanProgress })),
+          onProgress: (scanProgress) => setState((s) => ({ ...s, scanProgress })),
         })
         setState((s) => ({
           ...s,
@@ -153,8 +147,6 @@ export default function App() {
       loading: true,
       error: "",
       result: null,
-      enhancement: null,
-      enhancementError: "",
       processMode: state.processMode || "server",
     }))
     try {
@@ -169,59 +161,39 @@ export default function App() {
       if (state.processMode === "local") {
         result.selection_reason = [
           result.selection_reason,
-          "Compared on a stratified sample of this large file so classification stays fast; your full cleaned CSV is still the download above.",
+          "Compared on a sample of this large file; your full cleaned download is unchanged.",
         ]
           .filter(Boolean)
           .join(" ")
       }
       setState((s) => ({ ...s, result, loading: false }))
     } catch (err) {
-      const message = err instanceof Error ? err.message : "SOFIDR could not evaluate this target"
+      const message =
+        err instanceof Error ? err.message : "SOFIDR could not evaluate this target"
       setState((s) => ({ ...s, error: message, loading: false }))
     }
   }
 
-  const handleApplyRecommendation = async () => {
-    if (!state.sourceFile || !state.result) return
-    if (state.processMode === "local") {
-      setState((s) => ({
-        ...s,
-        enhancementError:
-          "For large local cleans, download the cleaned CSV above. Formation re-apply on the full million-row file stays in your browser export.",
-      }))
-      return
-    }
-    setState((s) => ({ ...s, enhancementLoading: true, enhancementError: "" }))
-    try {
-      const enhancement = await api.enhance(
-        state.sourceFile,
-        state.result.best_by_sei,
-        state.result.target_column,
-      )
-      setState((s) => ({ ...s, enhancement, enhancementLoading: false }))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "SOFIDR could not apply the recommended formation"
-      setState((s) => ({ ...s, enhancementError: message, enhancementLoading: false }))
-    }
-  }
-
-  const exploreBenchmark = () => {
-    setDemoActive(true)
-    window.requestAnimationFrame(() => {
-      document.getElementById("process-demo")?.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-        block: "start",
-      })
-    })
-  }
-
-  const focusBenchmarkPicker = () => {
-    document.getElementById("analysis")?.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+  const scrollTo = (id: string) => {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    document.getElementById(id)?.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
       block: "start",
     })
-    const focusDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 450
-    window.setTimeout(() => benchmarkButtonRef.current?.focus({ preventScroll: true }), focusDelay)
+  }
+
+  const openDemo = () => {
+    setDemoActive(true)
+    window.requestAnimationFrame(() => scrollTo("demo"))
+  }
+
+  const focusStart = () => {
+    scrollTo("start")
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 400
+    window.setTimeout(
+      () => benchmarkButtonRef.current?.focus({ preventScroll: true }),
+      delay
+    )
   }
 
   const resetAnalysis = () => {
@@ -231,100 +203,27 @@ export default function App() {
       error: "",
       result: null,
       sourceFile: null,
-      enhancement: null,
-      enhancementLoading: false,
-      enhancementError: "",
       cleaning: null,
       profile: null,
       scanProgress: null,
       processMode: null,
     }))
+    window.requestAnimationFrame(() => scrollTo("start"))
   }
 
-  return (
-    <div className="app">
-      <header className="app-header">
-        <nav className="nav" aria-label="Primary navigation">
+  if (hasOutput) {
+    return (
+      <div className="app app-results">
+        <header className="results-topbar">
           <a className="brand" href="/" aria-label="SOFIDR home">
-            <span className="brand-mark" aria-hidden="true">S</span>
+            <span className="brand-mark" aria-hidden="true">
+              S
+            </span>
             <span>SOFIDR</span>
           </a>
-          <div className="nav-meta">
-            <span className="status-dot" aria-hidden="true"></span>
-            Ready · session-only processing
-          </div>
-        </nav>
-        <div className="hero">
-          <p className="eyebrow">Make your data easier to use</p>
-          <h1>Start with cleaner data.<br />Make better decisions.</h1>
-          <p className="tagline">
-            Upload a spreadsheet. Watch SOFIDR scan it, clean it, and hand you a
-            ready-to-download file — from small sheets to about a million CSV rows.
-            Nothing is stored after you leave.
-          </p>
-          <div className="hero-actions">
-            <button type="button" className="hero-cta" onClick={exploreBenchmark}>
-              See how it works <span aria-hidden="true">↓</span>
-            </button>
-            <a className="hero-secondary" href="#analysis">
-              Clean a file
-            </a>
-          </div>
-          <div className="hero-proof" aria-label="SOFIDR promises">
-            <span><strong>1 Dataset</strong> preview & download</span>
-            <span><strong>2 Visualization</strong> clear charts</span>
-            <span><strong>3 Report</strong> insights only</span>
-          </div>
-        </div>
-      </header>
-
-      <PrivacyTrust />
-
-      <section className="intro" aria-labelledby="intro-heading">
-        <div className="intro-inner">
-          <p className="eyebrow">How it helps</p>
-          <h2 id="intro-heading">Better data, without the guesswork.</h2>
-          <p>
-            SOFIDR — Strategic Optimization Framework for Iterative Data Regeneration —
-            shows what it scanned, what it fixed, and gives you a cleaned dataset you can
-            download. Optional: compare preparation strategies when you have a category to predict.
-          </p>
-        </div>
-      </section>
-
-      <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusBenchmarkPicker} />
-
-      <section className="viz-marketing" id="visualize-story" aria-labelledby="viz-marketing-heading">
-        <div className="viz-marketing-inner">
-          <p className="eyebrow">Three clear steps</p>
-          <h2 id="viz-marketing-heading">Dataset → Visualization → Report.</h2>
-          <p>
-            Upload once. Step 1 gives you a preview and download. Step 2 shows the charts.
-            Step 3 builds a research-style insight report — no raw data dump, just what matters
-            for a decision.
-          </p>
-          <ol className="viz-marketing-steps" aria-label="Analysis steps">
-            <li>
-              <strong>1 · Dataset</strong>
-              <span>Preview the cleaned file and download it.</span>
-            </li>
-            <li>
-              <strong>2 · Visualization</strong>
-              <span>See issues, quality, and formation scores.</span>
-            </li>
-            <li>
-              <strong>3 · Report</strong>
-              <span>Insights, highlight charts, and next actions.</span>
-            </li>
-          </ol>
-          <a className="hero-cta viz-marketing-cta" href="#analysis">
-            Start with a file
-          </a>
-        </div>
-      </section>
-
-      <main className="app-main" id="analysis">
-        {state.cleaning || state.result ? (
+          <p className="results-topbar-note">Session only · nothing stored</p>
+        </header>
+        <main className="app-main results-main">
           <AnalysisJourney
             cleaning={state.cleaning}
             profile={state.profile}
@@ -338,46 +237,135 @@ export default function App() {
             strategyLoading={state.loading && Boolean(state.cleaning)}
             strategyError={state.error}
           />
-        ) : (
-          <div className="input-section">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Start here</p>
-                <h2>Choose what you want to do.</h2>
-              </div>
-              <p>
-                Start with your own file to scan and clean it, or try a prepared
-                example to see how SOFIDR works before uploading anything.
-              </p>
-            </div>
-            <div className="input-container">
-              <FileUploader loading={state.loading} onUpload={handleFileUpload} />
-              <div className="divider" aria-hidden="true"><span>or try an example</span></div>
-              <ArchetypeSelector
-                archetypes={state.archetypes}
-                loading={state.loading}
-                onSelect={handleArchetypeSelect}
-                firstButtonRef={benchmarkButtonRef}
-              />
-            </div>
+        </main>
+        <footer className="app-footer compact">
+          <p className="footer-copy">© 2026 Jayasaagar C</p>
+          <nav className="footer-links" aria-label="Connect">
+            <a
+              href="https://www.linkedin.com/in/jayasaagar-c"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              LinkedIn
+            </a>
+            <a
+              href="https://github.com/jayasaagar21"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+          </nav>
+        </footer>
+      </div>
+    )
+  }
 
-            {state.error && <div className="error-message" role="alert">{state.error}</div>}
-
-            {state.loading && (
-              <AnalysisProgress
-                progress={state.scanProgress}
-                fileName={state.sourceFile?.name}
-                mode={state.processMode || "auto"}
-              />
-            )}
+  return (
+    <div className="app">
+      <header className="app-header landing-header">
+        <nav className="nav landing-nav" aria-label="Primary navigation">
+          <a className="brand" href="/" aria-label="SOFIDR home">
+            <span className="brand-mark" aria-hidden="true">
+              S
+            </span>
+            <span>SOFIDR</span>
+          </a>
+          <div className="nav-links">
+            <a href="#problem">Problem</a>
+            <a href="#solution">Solution</a>
+            <a href="#demo">Demo</a>
+            <a href="#start" className="nav-start">
+              Start
+            </a>
           </div>
-        )}
+        </nav>
+
+        <div className="hero" id="problem">
+          <p className="eyebrow">The problem</p>
+          <h1>
+            Messy data
+            <br />
+            slows decisions.
+          </h1>
+          <p className="tagline">
+            Spreadsheets arrive with blanks, duplicates, and unclear fields. Teams argue over
+            numbers instead of acting on them — and nobody trusts the file enough to decide.
+          </p>
+        </div>
+      </header>
+
+      <section className="landing-block" id="solution" aria-labelledby="solution-heading">
+        <div className="landing-inner">
+          <p className="eyebrow">The solution</p>
+          <h2 id="solution-heading">Clean the file. See the story. Take the report.</h2>
+          <p>
+            SOFIDR turns an upload into a cleaned dataset, a simple visual view of what matters,
+            and a downloadable insight report — processed for this visit only, then discarded.
+          </p>
+          <ul className="landing-points">
+            <li>
+              <strong>Dataset</strong>
+              <span>Preview and download a cleaner file.</span>
+            </li>
+            <li>
+              <strong>Visualization</strong>
+              <span>See issues and quality at a glance.</span>
+            </li>
+            <li>
+              <strong>Report</strong>
+              <span>Export insights as Word or PDF.</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <GuidedProcessDemo active={demoActive} onChooseBenchmark={focusStart} />
+
+      <main className="app-main landing-start" id="start">
+        <div className="input-section">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">Start</p>
+              <h2>Upload a file, or try an example.</h2>
+            </div>
+            <p>
+              One upload. One results page. Your data is not stored after the session.
+            </p>
+          </div>
+          <div className="input-container">
+            <FileUploader loading={state.loading} onUpload={handleFileUpload} />
+            <div className="divider" aria-hidden="true">
+              <span>or try an example</span>
+            </div>
+            <ArchetypeSelector
+              archetypes={state.archetypes}
+              loading={state.loading}
+              onSelect={handleArchetypeSelect}
+              firstButtonRef={benchmarkButtonRef}
+            />
+          </div>
+
+          {state.error && (
+            <div className="error-message" role="alert">
+              {state.error}
+            </div>
+          )}
+
+          {state.loading && (
+            <AnalysisProgress
+              progress={state.scanProgress}
+              fileName={state.sourceFile?.name}
+              mode={state.processMode || "auto"}
+            />
+          )}
+        </div>
       </main>
 
       <footer className="app-footer">
         <div className="footer-brand">
-          <p>SOFIDR · Strategic Optimization Framework for Iterative Data Regeneration</p>
-          <p className="footer-copy">© 2026 Jayasaagar C · Your data is not stored after the session</p>
+          <p>SOFIDR</p>
+          <p className="footer-copy">© 2026 Jayasaagar C · Session-only processing</p>
         </div>
         <nav className="footer-links" aria-label="Connect">
           <a
@@ -394,6 +382,9 @@ export default function App() {
           >
             GitHub
           </a>
+          <button type="button" className="footer-text-btn" onClick={openDemo}>
+            Demo
+          </button>
         </nav>
       </footer>
     </div>

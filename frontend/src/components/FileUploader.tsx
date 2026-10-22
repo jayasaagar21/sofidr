@@ -36,14 +36,12 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
 
     const tabular = isLocalTabularCandidate(file)
     if (tabular && file.size > LOCAL_FILE_LIMIT) {
-      setError(
-        "This CSV/TSV is larger than 250 MB. Split it or export a smaller extract, then try again."
-      )
+      setError("This CSV/TSV is larger than 250 MB. Try a smaller extract.")
       return
     }
     if (!tabular && file.size > SERVER_BODY_LIMIT) {
       setError(
-        "Excel and JSON are limited to about 3.5 MB here. For large data, export CSV or TSV — those can be cleaned locally up to ~1 million rows."
+        "Excel and JSON are limited to about 3.5 MB. For large data, export CSV or TSV."
       )
       return
     }
@@ -60,11 +58,7 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-
-    const files = e.dataTransfer.files
-    if (files.length > 0) {
-      validateAndUpload(files[0])
-    }
+    if (e.dataTransfer.files.length > 0) validateAndUpload(e.dataTransfer.files[0])
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,13 +72,8 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
     <div className="file-uploader">
       <div className="panel-heading">
         <div>
-          <p className="option-label">Option 1</p>
-          <h3>Clean and improve your dataset</h3>
-          <p>
-            Upload a file and get a clearer, cleaner version back. Small files use the
-            quick path; large CSV/TSV files are cleaned in your browser — up to about a
-            million rows.
-          </p>
+          <h3>Your file</h3>
+          <p>Drop a spreadsheet to clean it. CSV/TSV can go large; Excel and JSON stay smaller.</p>
         </div>
       </div>
       <div
@@ -104,16 +93,6 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
           hidden
         />
         <div className="drop-content">
-          <div className="upload-icon" aria-hidden="true">
-            <svg className="drop-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-          </div>
           <strong>Drop your file here</strong>
           <p>or choose it from your device</p>
           <Button
@@ -127,13 +106,13 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
       </div>
       <p className="file-hint" id="file-requirements">
         <span>CSV · TSV · Excel · JSON</span>
-        <span>CSV/TSV up to ~1M rows</span>
-        <span>Session only — not stored</span>
+        <span>Not stored after this session</span>
       </p>
-      <p className="file-output-note">
-        You will watch each scan step, then download a cleaned file and a shareable summary.
-      </p>
-      {error && <p className="error-message" role="alert">{error}</p>}
+      {error && (
+        <p className="error-message" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
