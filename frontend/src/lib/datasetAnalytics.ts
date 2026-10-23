@@ -2,6 +2,8 @@
  * Client-side analytics: correlations, skew, outliers, neighbors, category mix.
  */
 
+import { buildVisualAnalytics, VisualAnalytics } from "./visualAnalytics"
+
 export interface CorrPair {
   left: string
   right: string
@@ -29,6 +31,7 @@ export interface CategoryMix {
 }
 
 export interface DatasetAnalytics {
+  visual: VisualAnalytics | null
   rowsAnalyzed: number
   columnCount: number
   categorical: CategoryMix[]
@@ -93,7 +96,10 @@ function iqrOutlierCount(values: number[]): number {
 }
 
 function parseCsvTable(csv: string, maxRows = 8000): { columns: string[]; rows: string[][] } {
-  const lines = csv.split(/\r?\n/).filter((l) => l.trim().length)
+  const lines = csv.split(/\r?\n/)
+  // A byte-limited read can cut the final row mid-way.
+  if (!/\r?\n$/.test(csv) && lines.length > 2) lines.pop()
+  for (let i = lines.length - 1; i >= 0; i -= 1) if (!lines[i].trim()) lines.splice(i, 1)
   if (!lines.length) return { columns: [], rows: [] }
   const split = (line: string) => {
     const out: string[] = []
@@ -125,6 +131,7 @@ export function buildAnalyticsFromCsv(csv: string): DatasetAnalytics {
   const { columns, rows } = parseCsvTable(csv)
   if (!columns.length || !rows.length) {
     return {
+      visual: null,
       rowsAnalyzed: 0,
       columnCount: columns.length,
       categorical: [],
@@ -229,7 +236,16 @@ export function buildAnalyticsFromCsv(csv: string): DatasetAnalytics {
   }
   categorical.sort((a, b) => (b.top[0]?.pct ?? 0) - (a.top[0]?.pct ?? 0))
 
+  const visual = buildVisualAnalytics({
+    columns,
+    rows,
+    numericColumns,
+    numericSeries: series,
+    topPair: topPairs[0] ?? null,
+  })
+
   return {
+    visual,
     rowsAnalyzed: rows.length,
     columnCount: columns.filter((c) => !String(c).includes("__was_missing")).length,
     categorical: categorical.slice(0, 6),

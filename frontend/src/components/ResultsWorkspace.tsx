@@ -11,6 +11,16 @@ import { buildStoryReport } from "../lib/storyReport"
 import { downloadWordReport, printReportAsPdf } from "../lib/reportExport"
 import { buildAnalyticsFromCsv, DatasetAnalytics } from "../lib/datasetAnalytics"
 import { buildCleaningLines } from "../lib/cleaningCatalog"
+import { VisualKind } from "../lib/visualAnalytics"
+import {
+  CategoryBars,
+  GeoMap,
+  Histogram,
+  KnnExplorer,
+  PieChart,
+  ScatterPlot,
+  TimeSeriesChart,
+} from "./AnalyticsCharts"
 import { Button } from "./ui/Button"
 import InfoButton from "./InfoButton"
 
@@ -59,7 +69,16 @@ function BarChart({
   )
 }
 
-const MIX_COLORS = ["#c9f76f", "#8cbeff", "#ffba5c", "#ff7864", "#c99bff"]
+const VISUAL_LABEL: Record<VisualKind, string> = {
+  timeseries: "Time series",
+  geo: "Geographic map",
+  histogram: "Histogram",
+  scatter: "Scatterplot",
+  heatmap: "Heatmap",
+  knn: "K-nearest neighbours",
+  pie: "Pie chart",
+  bar: "Bar chart",
+}
 
 const VIZ_LOAD_STEPS = [
   "Analyzing the cleaned dataset…",
@@ -331,18 +350,11 @@ export default function ResultsWorkspace({
 
   const analyticsInsights = useMemo(() => {
     const out: { title: string; detail: string; kind: string; metric?: string }[] = []
-    if (analytics?.rowsAnalyzed) {
-      out.push({
-        kind: "structure",
-        title: "Dataset shape",
-        metric: `${analytics.rowsAnalyzed.toLocaleString()} × ${analytics.columnCount}`,
-        detail: `${analytics.numericColumns.length} numeric and ${analytics.categorical.length} segment fields analyzed${
-          m?.after.rows && m.after.rows > analytics.rowsAnalyzed ? " (sample of the cleaned file)" : ""
-        }.`,
-      })
-    }
+    const visualInsights = analytics?.visual?.insights ?? []
+    out.push(...visualInsights)
+    const covered = new Set(visualInsights.map((i) => i.kind))
     const seg = analytics?.categorical[0]
-    if (seg?.top[0]) {
+    if (seg?.top[0] && !covered.has("pie") && !covered.has("bar")) {
       out.push({
         kind: "segment",
         title: "Dominant segment",
@@ -352,16 +364,7 @@ export default function ResultsWorkspace({
         }.`,
       })
     }
-    const spread = analytics?.categorical.find((c) => c !== seg && c.top[0] && c.top[0].pct < 40)
-    if (spread) {
-      out.push({
-        kind: "segment",
-        title: "Evenly spread field",
-        metric: String(spread.distinct),
-        detail: `${spread.column} has no dominant value (top ${spread.top[0].pct}%) — a good dimension for comparing groups.`,
-      })
-    }
-    if (analytics?.neighbors[0]) {
+    if (analytics?.neighbors[0] && !covered.has("scatter")) {
       const n = analytics.neighbors[0]
       out.push({
         kind: "neighbor",
@@ -370,16 +373,7 @@ export default function ResultsWorkspace({
         detail: `${n.left} and ${n.right} move together. Treat as one narrative in dashboards to avoid double-counting.`,
       })
     }
-    if (analytics?.neighbors[1]) {
-      const n = analytics.neighbors[1]
-      out.push({
-        kind: "neighbor",
-        title: "Secondary co-movers",
-        metric: `|r| ${Math.abs(n.value).toFixed(2)}`,
-        detail: `${n.left} ↔ ${n.right}. Useful cross-check when validating the primary link.`,
-      })
-    }
-    if (analytics?.skew[0] && Math.abs(analytics.skew[0].skew) >= 0.8) {
+    if (analytics?.skew[0] && Math.abs(analytics.skew[0].skew) >= 0.8 && !covered.has("histogram")) {
       const s = analytics.skew[0]
       out.push({
         kind: "skew",
@@ -413,8 +407,10 @@ export default function ResultsWorkspace({
         detail: `Completeness ${m.completenessBefore ?? "—"}% → ${m.completenessAfter ?? "—"}% after ${m.duplicatesRemoved.toLocaleString()} duplicate drops and ${m.missingFilled.toLocaleString()} fills.`,
       })
     }
-    return out.slice(0, 9)
+    return out.slice(0, 10)
   }, [analytics, issueBars, m])
+
+  const visualChoices = analytics?.visual?.choices ?? []
 
   const scoreboardBars =
     story.selection?.scoreboard.map((row) => ({
@@ -675,22 +671,27 @@ export default function ResultsWorkspace({
                 </div>
                 <InfoButton title="How analytics is derived">
                   <p>
-                    Infographics and charts are computed from the cleaned frame: correlations,
-                    neighbor pairs, skew, IQR outliers, and residual quality signals. The Report
-                    page summarizes these as business insights.
+                    SOFIDR inspects the cleaned data and picks only the chart types that fit it:
+                    dates → time series, countries or coordinates → map, numeric measures →
+                    histogram, linked measures → scatterplot, many measures → heatmap and KNN,
+                    few categories → pie, many categories → bar chart.
                   </p>
+                  <p>Each chart's finding becomes a business insight on the Report page.</p>
                 </InfoButton>
               </div>
               <p className="results-section-lead">
-                Information derived from your cleaned data — insight cards plus exploratory charts
-                for analyst review before the brief.
+                {visualChoices.length
+                  ? `${visualChoices.length} chart types selected for this dataset: ${visualChoices
+                      .map((c) => VISUAL_LABEL[c.kind])
+                      .join(", ")}.`
+                  : "Charts derived from your cleaned data."}
               </p>
 
               {analyticsInsights.length > 0 && (
                 <div className="insight-infographics">
                   <div className="preview-heading">
-                    <h3>Derived insights</h3>
-                    <span>From cleaned numeric & quality signals</span>
+                    <h3>Key findings</h3>
+                    <span>One per chart · carried into the Report</span>
                   </div>
                   <ul className="insight-card-grid">
                     {analyticsInsights.map((insight) => (
@@ -707,69 +708,51 @@ export default function ResultsWorkspace({
                 </div>
               )}
 
-              {analytics?.categorical.length ? (
-                <div className="viz-panel">
-                  <h3>Segment mix (top values per field)</h3>
-                  <ul className="category-mix-list">
-                    {analytics.categorical.map((cat) => {
-                      const rest = Math.max(0, 100 - cat.top.reduce((s, t) => s + t.pct, 0))
-                      return (
-                        <li key={cat.column}>
-                          <div className="category-mix-head">
-                            <strong>{cat.column}</strong>
-                            <span>{cat.distinct} values</span>
-                          </div>
-                          <div className="category-mix-bar">
-                            {cat.top.map((t, i) => (
-                              <span
-                                key={t.value}
-                                title={`${t.value}: ${t.pct}%`}
-                                style={{ width: `${t.pct}%`, background: MIX_COLORS[i] }}
-                              />
-                            ))}
-                            {rest > 0 && (
-                              <span
-                                title={`Other: ${rest.toFixed(1)}%`}
-                                style={{ width: `${rest}%`, background: "rgba(255,255,255,0.12)" }}
-                              />
-                            )}
-                          </div>
-                          <div className="category-mix-legend">
-                            {cat.top.map((t, i) => (
-                              <span key={t.value}>
-                                <i style={{ background: MIX_COLORS[i] }} />
-                                {t.value} {t.pct}%
-                              </span>
-                            ))}
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ) : null}
+              {analytics?.visual &&
+                visualChoices.map((choice) => {
+                  const v = analytics.visual!
+                  let body: React.ReactNode = null
+                  if (choice.kind === "timeseries" && v.timeSeries)
+                    body = <TimeSeriesChart data={v.timeSeries} />
+                  else if (choice.kind === "geo" && v.geo) body = <GeoMap data={v.geo} />
+                  else if (choice.kind === "histogram")
+                    body = <Histogram samples={v.numericSamples} />
+                  else if (choice.kind === "scatter" && v.scatter)
+                    body = <ScatterPlot data={v.scatter} />
+                  else if (choice.kind === "heatmap")
+                    body = (
+                      <Heatmap labels={analytics.corrLabels} matrix={analytics.correlationMatrix} />
+                    )
+                  else if (choice.kind === "knn" && v.knn) body = <KnnExplorer data={v.knn} />
+                  else if (choice.kind === "pie" && v.pie) body = <PieChart data={v.pie} />
+                  else if (choice.kind === "bar" && v.bar) body = <CategoryBars data={v.bar} />
+                  if (!body) return null
+                  return (
+                    <div className="viz-panel" key={choice.kind}>
+                      <div className="viz-panel-head">
+                        <div>
+                          <span className="viz-kind-tag">{VISUAL_LABEL[choice.kind]}</span>
+                          <h3>{choice.title}</h3>
+                        </div>
+                        <InfoButton
+                          title={`Why a ${VISUAL_LABEL[choice.kind].toLowerCase()}?`}
+                          label="Why this chart"
+                          variant="why"
+                        >
+                          <p>{choice.why}</p>
+                        </InfoButton>
+                      </div>
+                      {body}
+                    </div>
+                  )
+                })}
 
-              <div className="viz-panel">
-                <h3>Correlation heatmap</h3>
-                <Heatmap
-                  labels={analytics?.corrLabels || []}
-                  matrix={analytics?.correlationMatrix || []}
-                />
+              <div className="preview-heading analytics-subhead">
+                <h3>Data quality signals</h3>
+                <span>Skew, outliers and residual risk after cleaning</span>
               </div>
 
               <div className="viz-grid-2">
-                <div className="viz-panel">
-                  <h3>Strong neighbors (similar movers)</h3>
-                  <BarChart
-                    items={(analytics?.neighbors || []).map((p) => ({
-                      label: `${p.left} ↔ ${p.right}`,
-                      value: Math.abs(p.value),
-                      highlight: Math.abs(p.value) >= 0.7,
-                    }))}
-                    max={1}
-                    valueFormat={(v) => v.toFixed(2)}
-                  />
-                </div>
                 <div className="viz-panel">
                   <h3>Skew ratios</h3>
                   <BarChart
