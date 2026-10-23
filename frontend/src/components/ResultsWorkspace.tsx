@@ -23,6 +23,7 @@ import {
 } from "./AnalyticsCharts"
 import { Button } from "./ui/Button"
 import InfoButton from "./InfoButton"
+import StrategyPanel from "./StrategyPanel"
 
 export type WorkspacePage = "dataset" | "visualize" | "report"
 
@@ -32,6 +33,7 @@ interface ResultsWorkspaceProps {
   cleaning: CleanResponse | null
   profile: DatasetProfile | null
   optimize: OptimizeResponse | null
+  strategyNote?: string
   sourceFile: File | null
   sourceName: string
   scanLog: string[]
@@ -78,6 +80,19 @@ const VISUAL_LABEL: Record<VisualKind, string> = {
   knn: "K-nearest neighbours",
   pie: "Pie chart",
   bar: "Bar chart",
+}
+
+const OTHER_SOURCES: Record<string, string> = {
+  neighbor: "Correlation",
+  segment: "Category mix",
+  skew: "Skew check",
+  outlier: "IQR outliers",
+  quality: "Data-quality profile",
+  coverage: "Cleaning results",
+}
+
+function sourceLabel(kind: string): string {
+  return VISUAL_LABEL[kind as VisualKind] ?? OTHER_SOURCES[kind] ?? kind
 }
 
 const VIZ_LOAD_STEPS = [
@@ -248,6 +263,7 @@ export default function ResultsWorkspace({
   cleaning,
   profile,
   optimize,
+  strategyNote = "",
   sourceFile,
   sourceName,
   scanLog,
@@ -412,6 +428,11 @@ export default function ResultsWorkspace({
 
   const visualChoices = analytics?.visual?.choices ?? []
 
+  const reportInsights = analyticsInsights.map((i) => ({
+    title: i.title,
+    detail: `${i.detail}${i.metric ? ` (${i.metric})` : ""} — Source: ${sourceLabel(i.kind)}.`,
+  }))
+
   const scoreboardBars =
     story.selection?.scoreboard.map((row) => ({
       label: row.name.replace(/_/g, " "),
@@ -534,6 +555,8 @@ export default function ResultsWorkspace({
               ))}
             </ul>
           </div>
+
+          <StrategyPanel optimize={optimize} note={strategyNote} />
 
           <details
             className="scan-log"
@@ -696,7 +719,7 @@ export default function ResultsWorkspace({
                   <ul className="insight-card-grid">
                     {analyticsInsights.map((insight) => (
                       <li key={`${insight.kind}-${insight.title}`} className={`insight-card kind-${insight.kind}`}>
-                        <span className="insight-card-kind">{insight.kind}</span>
+                        <span className="insight-card-kind">{sourceLabel(insight.kind)}</span>
                         {insight.metric ? (
                           <strong className="insight-card-metric">{insight.metric}</strong>
                         ) : null}
@@ -857,12 +880,7 @@ export default function ResultsWorkspace({
                 <h4>Business insights (from Analytics)</h4>
                 <ol className="report-insight-list">
                   {(analyticsInsights.length
-                    ? analyticsInsights.map((insight) => ({
-                        title: insight.title,
-                        detail: insight.metric
-                          ? `${insight.detail} (${insight.metric})`
-                          : insight.detail,
-                      }))
+                    ? reportInsights
                     : story.insights
                   ).map((insight) => (
                     <li key={insight.title}>
@@ -887,12 +905,7 @@ export default function ResultsWorkspace({
               <div className="journey-download-row">
                 <Button
                   onClick={() =>
-                    downloadWordReport(story, sourceName, {
-                      derivedInsights: analyticsInsights.map((i) => ({
-                        title: i.title,
-                        detail: i.metric ? `${i.detail} (${i.metric})` : i.detail,
-                      })),
-                    })
+                    downloadWordReport(story, sourceName, { derivedInsights: reportInsights })
                   }
                 >
                   Download Word (editable)
@@ -900,12 +913,7 @@ export default function ResultsWorkspace({
                 <Button
                   variant="secondary"
                   onClick={() =>
-                    printReportAsPdf(story, sourceName, {
-                      derivedInsights: analyticsInsights.map((i) => ({
-                        title: i.title,
-                        detail: i.metric ? `${i.detail} (${i.metric})` : i.detail,
-                      })),
-                    })
+                    printReportAsPdf(story, sourceName, { derivedInsights: reportInsights })
                   }
                 >
                   Save as PDF / Print

@@ -62,10 +62,10 @@ export default function ProcessingPage({
           <span className="process-file-pulse" aria-hidden="true" />
         </div>
 
-        <h1>Profiling & cleaning in progress</h1>
+        <h1>Running the SOFIDR pipeline</h1>
         <p className="process-page-lead">
-          Judging schema and quality, selecting tactics, applying synonym collapse and repairs.
-          ~5s breakdown, then the Dataset page with before/after preview.
+          Reconnaissance, cleaning, default formation, SEI scoring of six formations, and
+          iterative refinement — then the Dataset page with the full breakdown.
         </p>
 
         <div

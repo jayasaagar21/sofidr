@@ -4000,6 +4000,140 @@ a:focus-visible {
   background: rgba(201, 247, 111, 0.1);
 }
 
+/* SOFIDR strategy panel (paper phases) */
+.strategy-panel {
+  display: grid;
+  gap: 1rem;
+  margin: 1.25rem 0;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid rgba(201, 247, 111, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(170deg, rgba(201, 247, 111, 0.04), #101411 60%);
+}
+
+.strategy-panel.is-skipped {
+  border-color: var(--line);
+}
+
+.strategy-panel h3 {
+  margin: 0;
+}
+
+.strategy-phase {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.strategy-phase header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.strategy-phase h4 {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.strategy-phase p {
+  margin: 0;
+}
+
+.strategy-step {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(201, 247, 111, 0.14);
+  color: var(--acid);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.strategy-panel .info-eye {
+  width: 32px;
+  height: 32px;
+}
+
+.strategy-terrain {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.6rem;
+}
+
+.strategy-terrain > div {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.8rem;
+}
+
+.strategy-terrain > div.is-hit {
+  border-color: rgba(255, 186, 92, 0.55);
+  background: rgba(255, 186, 92, 0.06);
+}
+
+.strategy-terrain span,
+.strategy-terrain small {
+  color: var(--muted);
+}
+
+.strategy-terrain strong {
+  font-size: 1.15rem;
+}
+
+.sei-table {
+  width: 100%;
+  font-size: 0.82rem;
+}
+
+.sei-table tr.is-best td {
+  color: var(--acid);
+  font-weight: 600;
+}
+
+.refine-log {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.refine-log strong {
+  color: var(--ink);
+}
+
+.refine-log li.is-switch {
+  color: #ffba5c;
+}
+
+.strategy-verdict {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(201, 247, 111, 0.08);
+}
+
+.strategy-verdict span,
+.strategy-verdict small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.strategy-verdict strong {
+  font-size: 1.3rem;
+  color: var(--acid);
+}
+
 /* Analytics charts */
 .viz-panel + .viz-panel,
 .viz-panel + .preview-heading,

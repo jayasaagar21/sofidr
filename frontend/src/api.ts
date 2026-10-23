@@ -17,6 +17,10 @@ export interface OptimizeResponse {
   success: boolean
   dataset_name: string
   target_column?: string | null
+  target_reason?: string
+  feature_columns?: string[]
+  rows_evaluated?: number
+  epsilon?: number
   terrain_tags: string[]
   cold_start_default: string
   best_by_sei: string

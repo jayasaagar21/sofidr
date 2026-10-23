@@ -34,6 +34,24 @@ interface AppState {
   scanLog: string[]
   processMode: "server" | "local" | null
   sourceLabel: string
+  strategyNote: string
+}
+
+/** Head sample of a large upload for SEI scoring; the server samples 300 stratified rows anyway. */
+async function sampleForStrategy(file: File, maxBytes = 1_500_000): Promise<File> {
+  if (file.size <= maxBytes || !/\.(csv|tsv|txt)$/i.test(file.name)) return file
+  const text = await file.slice(0, maxBytes).text()
+  const cut = text.lastIndexOf("\n")
+  return new File([cut > 0 ? text.slice(0, cut + 1) : text], file.name, { type: file.type || "text/csv" })
+}
+
+async function runStrategy(file: File): Promise<{ result: OptimizeResponse | null; note: string }> {
+  try {
+    const result = await api.optimize({ file: await sampleForStrategy(file), iterations: 3 })
+    return { result, note: "" }
+  } catch (err) {
+    return { result: null, note: err instanceof Error ? err.message : "Strategy evaluation failed" }
+  }
 }
 
 function pushLog(log: string[], line: string): string[] {
@@ -57,6 +75,7 @@ export default function App() {
     scanLog: [],
     processMode: null,
     sourceLabel: "",
+    strategyNote: "",
   })
   const [demoActive, setDemoActive] = useState(false)
   const benchmarkButtonRef = useRef<HTMLButtonElement>(null)
@@ -96,6 +115,7 @@ export default function App() {
       scanLog: [],
       processMode: null,
       sourceLabel: "",
+      strategyNote: "",
     }))
     window.requestAnimationFrame(() => {
       document.getElementById("start")?.scrollIntoView({ block: "start" })
@@ -140,6 +160,7 @@ export default function App() {
       ],
       processMode: "server",
       result: null,
+      strategyNote: "",
       sourceLabel: archetype.replace(/_/g, " "),
     }))
     try {
@@ -177,14 +198,25 @@ export default function App() {
       scanProgress: null,
       scanLog: [
         `File added: ${file.name}`,
-        "Understand the dataset",
+        "Reconnaissance: measure data terrain",
         "Choose cleaning tactics",
       ],
       processMode: useLocal ? "local" : "server",
       sourceLabel: file.name,
+      strategyNote: "",
     }))
+    const strategyLog = (s: { result: OptimizeResponse | null; note: string }) =>
+      s.result
+        ? [
+            `Algorithm 1 default: ${s.result.cold_start_default}`,
+            `SEI evaluation: ${s.result.scoreboard.length} formations scored`,
+            `Iterative refinement: ${s.result.refinement_log?.length ?? 0} perturbation rounds`,
+            `Selected formation: ${s.result.best_by_sei}`,
+          ]
+        : [`SEI evaluation skipped: ${s.note}`]
     try {
       if (useLocal) {
+        const strategyPromise = runStrategy(file)
         const { cleaning, profile } = await cleanLocally(file, {
           onProgress: (scanProgress) =>
             setState((s) => ({
@@ -193,15 +225,18 @@ export default function App() {
               scanLog: pushLog(s.scanLog, scanProgress.detail),
             })),
         })
+        const strategy = await strategyPromise
         await finishToWorkspace({
           cleaning,
           profile,
-          result: null,
+          result: strategy.result,
+          strategyNote: strategy.note,
           scanLog: [
             `File added: ${file.name}`,
-            "Understand the dataset",
+            "Reconnaissance: measure data terrain",
             "Canonicalize aliases (US / USA / United States)",
             "Structural repair & fills",
+            ...strategyLog(strategy),
             "Preview prepared",
           ],
         })
@@ -210,21 +245,24 @@ export default function App() {
 
       setState((s) => ({
         ...s,
-        scanLog: pushLog(s.scanLog, "Profiling columns & applying synonym maps"),
+        scanLog: pushLog(s.scanLog, "Profiling, cleaning & scoring formations"),
       }))
-      const [profile, cleaning] = await Promise.all([
+      const [profile, cleaning, strategy] = await Promise.all([
         api.profile(file),
         api.clean(file, "csv"),
+        runStrategy(file),
       ])
       cleaning.metadata.processingMode = "server"
       await finishToWorkspace({
         cleaning,
         profile,
-        result: null,
+        result: strategy.result,
+        strategyNote: strategy.note,
         scanLog: [
           `File added: ${file.name}`,
-          "Understand the dataset",
+          "Reconnaissance: measure data terrain",
           ...(cleaning.metadata.tactics || []).slice(0, 4).map((t) => t.tactic),
+          ...strategyLog(strategy),
           "Preview prepared",
         ],
       })
@@ -296,6 +334,7 @@ export default function App() {
             cleaning={state.cleaning}
             profile={state.profile}
             optimize={state.result}
+            strategyNote={state.strategyNote}
             sourceFile={state.sourceFile}
             sourceName={state.sourceLabel || "Uploaded dataset"}
             scanLog={state.scanLog}
@@ -348,7 +387,7 @@ export default function App() {
 
       <header className="app-header landing-header">
         <section className="hero intro-hero" id="explain" aria-labelledby="explain-heading">
-          <p className="eyebrow intro-fade">For data analytics experts</p>
+          <p className="eyebrow intro-fade">Adaptive data preparation</p>
           <h1 className="intro-title" id="explain-heading">
             <span className="intro-brand">SOFIDR</span>
           </h1>
@@ -356,9 +395,9 @@ export default function App() {
             Strategic Optimization Framework for Iterative Data Regeneration
           </p>
           <p className="tagline intro-fade-delay-2">
-            Profile, clean, and compare preparation tactics on tabular data — with before/after
-            previews, EDA charts, and an exportable insight brief. Built for analysts who need
-            defensible cleaning and selection in one session (nothing persisted).
+            Read the data terrain, clean it, score six preparation formations with the Strategic
+            Efficiency Index, and turn the right charts into business insights — in one session,
+            nothing persisted.
           </p>
           <div className="hero-actions intro-fade-delay-3">
             <a className="hero-cta" href="#problem">

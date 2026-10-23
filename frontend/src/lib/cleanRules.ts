@@ -122,23 +122,23 @@ export function standardizeValue(raw: string, columnName: string, samples: strin
 /** SOFIDR-aligned tactic labels shown during processing. */
 export const STRATEGY_STAGES = [
   {
-    title: "Understand the dataset",
-    detail: "Profile shape, missingness, duplicates, and field roles.",
+    title: "Reconnaissance",
+    detail: "Measure the data terrain: d/n, missingness, class balance, correlation, sparsity.",
   },
   {
-    title: "Choose cleaning tactics",
-    detail: "Match case scenarios: synonym collapse, bounds, imputation, format fixes.",
+    title: "Structural repair & cleaning",
+    detail: "Sentinel nulls, trim, duplicates; US / USA / United States → one label.",
   },
   {
-    title: "Apply structural repair",
-    detail: "Sentinel nulls, trim, exact-duplicate removal — retention-aware.",
+    title: "Default formation (Algorithm 1)",
+    detail: "Pick a cold-start formation from terrain thresholds.",
   },
   {
-    title: "Normalize & canonicalize",
-    detail: "US / USA / United States → one label; booleans, dates, currency cleaned.",
+    title: "SEI evaluation of six formations",
+    detail: "0.40 accuracy + 0.25 stability + 0.20 retention + 0.15 simplicity, shared CV folds.",
   },
   {
-    title: "Prepare decision outputs",
-    detail: "Build preview, analytics signals, and downloadable cleaned file.",
+    title: "Iterative refinement & outputs",
+    detail: "Perturb σ = 0.01·t, switch only if ≥3% better; build preview and charts.",
   },
 ] as const
