@@ -397,12 +397,12 @@ export default function App() {
               <span>Before/after preview and curated export.</span>
             </li>
             <li>
-              <strong>Visualization</strong>
-              <span>Heatmaps, neighbors, skew, IQR outliers.</span>
+              <strong>Analytics</strong>
+              <span>Derived insight cards, segment mix, heatmaps, skew, IQR outliers.</span>
             </li>
             <li>
               <strong>Report</strong>
-              <span>Decision-oriented insights and next actions.</span>
+              <span>Business insights summarized from Analytics, plus next actions.</span>
             </li>
           </ul>
           <button type="button" className="landing-inline-link" onClick={openDemo}>
@@ -421,7 +421,7 @@ export default function App() {
               <h2>Upload a frame or run a benchmark archetype.</h2>
             </div>
             <p>
-              Processing shows the tactic breakdown (~5s), then opens Dataset → Visualization →
+              Processing shows the tactic breakdown (~5s), then opens Dataset → Analytics →
               Report as dedicated pages for analyst review.
             </p>
           </div>

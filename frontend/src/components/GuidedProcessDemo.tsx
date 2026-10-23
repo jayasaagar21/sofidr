@@ -44,7 +44,7 @@ const SCENES = [
     backend: "Surface priority issues and quality dimensions for a visual read.",
     visual: "charts",
     metric: { label: "Completeness", value: "98%" },
-    signal: "Visualization",
+    signal: "Analytics",
   },
   {
     id: "choose",
@@ -60,7 +60,7 @@ const SCENES = [
     id: "report",
     chapter: "06",
     title: "A report you can take away",
-    line: "Insights and next actions — from the cleaned data and the charts — ready as Word or PDF.",
+    line: "Business insights summarized from the Analytics step, with next actions — ready as Word or PDF.",
     backend: "Compose problem → method → insights → actions. No raw table dump.",
     visual: "report",
     metric: { label: "Export", value: "Word · PDF" },

@@ -5,6 +5,11 @@
 
 import { StoryReport } from "./storyReport"
 
+export interface ReportExportOptions {
+  /** Insights derived from Analytics (step 2); preferred over story.insights when present. */
+  derivedInsights?: { title: string; detail: string }[]
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -22,8 +27,15 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-export function buildReportHtml(story: StoryReport, sourceName: string): string {
-  const insights = story.insights
+export function buildReportHtml(
+  story: StoryReport,
+  sourceName: string,
+  options?: ReportExportOptions
+): string {
+  const insightSource =
+    options?.derivedInsights?.length ? options.derivedInsights : story.insights
+
+  const insights = insightSource
     .map(
       (item) =>
         `<li><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.detail)}</p></li>`
@@ -71,25 +83,29 @@ export function buildReportHtml(story: StoryReport, sourceName: string): string 
   </style>
 </head>
 <body>
-  <h1>SOFIDR insight report</h1>
-  <p class="meta">${escapeHtml(sourceName)} · Generated in-session · Editable in Microsoft Word</p>
-  <h2>Problem</h2>
+  <h1>SOFIDR business insight brief</h1>
+  <p class="meta">${escapeHtml(sourceName)} · Derived from Analytics · Generated in-session</p>
+  <h2>Situation</h2>
   <p>${escapeHtml(story.problem.statement)}</p>
   <p>${escapeHtml(story.problem.message)}</p>
   ${changes}
   ${method}
-  <h2>Key insights</h2>
+  <h2>Business insights (from Analytics)</h2>
   <ul>${insights}</ul>
   <h2>Recommended next actions</h2>
   <ul>${actions}</ul>
-  <p class="meta">This report summarizes the cleaned dataset view and visualizations. Raw rows are not included.</p>
+  <p class="meta">This report summarizes Analytics (step 2) on the cleaned dataset. Raw rows are not included.</p>
 </body>
 </html>`
 }
 
 /** Editable Word document (opens in Microsoft Word). */
-export function downloadWordReport(story: StoryReport, sourceName: string) {
-  const body = buildReportHtml(story, sourceName)
+export function downloadWordReport(
+  story: StoryReport,
+  sourceName: string,
+  options?: ReportExportOptions
+) {
+  const body = buildReportHtml(story, sourceName, options)
   const wordHtml = `
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -109,19 +125,27 @@ export function downloadWordReport(story: StoryReport, sourceName: string) {
 }
 
 /** HTML report for browsers / print-to-PDF. */
-export function downloadHtmlReport(story: StoryReport, sourceName: string) {
-  const html = buildReportHtml(story, sourceName)
+export function downloadHtmlReport(
+  story: StoryReport,
+  sourceName: string,
+  options?: ReportExportOptions
+) {
+  const html = buildReportHtml(story, sourceName, options)
   const blob = new Blob([html], { type: "text/html;charset=utf-8" })
   const safe = sourceName.replace(/[^\w.-]+/g, "_").slice(0, 48) || "dataset"
   downloadBlob(blob, `${safe}-sofidr-report.html`)
 }
 
 /** Opens a print window so the user can Save as PDF. */
-export function printReportAsPdf(story: StoryReport, sourceName: string) {
-  const html = buildReportHtml(story, sourceName)
+export function printReportAsPdf(
+  story: StoryReport,
+  sourceName: string,
+  options?: ReportExportOptions
+) {
+  const html = buildReportHtml(story, sourceName, options)
   const frame = window.open("", "_blank", "noopener,noreferrer,width=900,height=700")
   if (!frame) {
-    downloadHtmlReport(story, sourceName)
+    downloadHtmlReport(story, sourceName, options)
     return
   }
   frame.document.open()

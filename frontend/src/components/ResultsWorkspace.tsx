@@ -10,6 +10,7 @@ import {
 import { buildStoryReport } from "../lib/storyReport"
 import { downloadWordReport, printReportAsPdf } from "../lib/reportExport"
 import { buildAnalyticsFromCsv, DatasetAnalytics } from "../lib/datasetAnalytics"
+import { buildCleaningLines } from "../lib/cleaningCatalog"
 import { Button } from "./ui/Button"
 import InfoButton from "./InfoButton"
 
@@ -58,19 +59,21 @@ function BarChart({
   )
 }
 
+const MIX_COLORS = ["#c9f76f", "#8cbeff", "#ffba5c", "#ff7864", "#c99bff"]
+
 const VIZ_LOAD_STEPS = [
-  "Analyzing the dataset…",
-  "Understanding numeric relationships…",
-  "Inputting cleaned fields for charts…",
-  "Selecting the best visualization strategy…",
-  "Rendering insights…",
+  "Analyzing the cleaned dataset…",
+  "Deriving numeric relationships…",
+  "Building infographics…",
+  "Selecting chart views…",
+  "Rendering analytics…",
 ]
 
 const REPORT_LOAD_STEPS = [
-  "Gathering dataset judgments…",
-  "Folding in visualization findings…",
+  "Reading Analytics findings…",
+  "Translating charts into business language…",
   "Writing conclusions…",
-  "Preparing downloadable report…",
+  "Preparing downloadable brief…",
 ]
 
 function StageReveal({
@@ -275,6 +278,16 @@ export default function ResultsWorkspace({
   const preview = cleaning?.preview
   const beforePreview = cleaning?.beforePreview
 
+  const cleaningLines = useMemo(() => {
+    const steps =
+      m?.steps?.length
+        ? m.steps
+        : scanLog.length
+          ? scanLog
+          : ["structural_repair", "normalized_empty_sentinels", "removed_duplicate_rows"]
+    return buildCleaningLines(steps, m?.tactics)
+  }, [m?.steps, m?.tactics, scanLog])
+
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -316,6 +329,93 @@ export default function ResultsWorkspace({
     highlight: issue.severity === "Critical" || issue.severity === "High",
   }))
 
+  const analyticsInsights = useMemo(() => {
+    const out: { title: string; detail: string; kind: string; metric?: string }[] = []
+    if (analytics?.rowsAnalyzed) {
+      out.push({
+        kind: "structure",
+        title: "Dataset shape",
+        metric: `${analytics.rowsAnalyzed.toLocaleString()} × ${analytics.columnCount}`,
+        detail: `${analytics.numericColumns.length} numeric and ${analytics.categorical.length} segment fields analyzed${
+          m?.after.rows && m.after.rows > analytics.rowsAnalyzed ? " (sample of the cleaned file)" : ""
+        }.`,
+      })
+    }
+    const seg = analytics?.categorical[0]
+    if (seg?.top[0]) {
+      out.push({
+        kind: "segment",
+        title: "Dominant segment",
+        metric: `${seg.top[0].pct}%`,
+        detail: `"${seg.top[0].value}" leads ${seg.column} across ${seg.distinct} values${
+          seg.top[0].pct >= 60 ? " — results will mostly reflect this group" : ""
+        }.`,
+      })
+    }
+    const spread = analytics?.categorical.find((c) => c !== seg && c.top[0] && c.top[0].pct < 40)
+    if (spread) {
+      out.push({
+        kind: "segment",
+        title: "Evenly spread field",
+        metric: String(spread.distinct),
+        detail: `${spread.column} has no dominant value (top ${spread.top[0].pct}%) — a good dimension for comparing groups.`,
+      })
+    }
+    if (analytics?.neighbors[0]) {
+      const n = analytics.neighbors[0]
+      out.push({
+        kind: "neighbor",
+        title: "Strongest linked measures",
+        metric: `|r| ${Math.abs(n.value).toFixed(2)}`,
+        detail: `${n.left} and ${n.right} move together. Treat as one narrative in dashboards to avoid double-counting.`,
+      })
+    }
+    if (analytics?.neighbors[1]) {
+      const n = analytics.neighbors[1]
+      out.push({
+        kind: "neighbor",
+        title: "Secondary co-movers",
+        metric: `|r| ${Math.abs(n.value).toFixed(2)}`,
+        detail: `${n.left} ↔ ${n.right}. Useful cross-check when validating the primary link.`,
+      })
+    }
+    if (analytics?.skew[0] && Math.abs(analytics.skew[0].skew) >= 0.8) {
+      const s = analytics.skew[0]
+      out.push({
+        kind: "skew",
+        title: "Distribution skew",
+        metric: s.skew.toFixed(2),
+        detail: `${s.column} is skewed. Prefer medians / robust prep over means for business targets.`,
+      })
+    }
+    if (analytics?.outliers[0]) {
+      const o = analytics.outliers[0]
+      out.push({
+        kind: "outlier",
+        title: "Outlier canyon",
+        metric: `${o.pct}%`,
+        detail: `${o.column}: ${o.count} IQR outliers. Review before locking SLA or forecast baselines.`,
+      })
+    }
+    if (issueBars[0]) {
+      out.push({
+        kind: "quality",
+        title: "Priority data-quality risk",
+        metric: `${issueBars[0].value.toFixed(1)}%`,
+        detail: `${issueBars[0].label} still the top residual risk after cleaning.`,
+      })
+    }
+    if (m) {
+      out.push({
+        kind: "coverage",
+        title: "Coverage lift",
+        metric: `${m.completenessAfter ?? "—"}%`,
+        detail: `Completeness ${m.completenessBefore ?? "—"}% → ${m.completenessAfter ?? "—"}% after ${m.duplicatesRemoved.toLocaleString()} duplicate drops and ${m.missingFilled.toLocaleString()} fills.`,
+      })
+    }
+    return out.slice(0, 9)
+  }, [analytics, issueBars, m])
+
   const scoreboardBars =
     story.selection?.scoreboard.map((row) => ({
       label: row.name.replace(/_/g, " "),
@@ -331,7 +431,7 @@ export default function ResultsWorkspace({
     : []
 
   const backLabel =
-    page === "dataset" ? "← Back to start" : page === "visualize" ? "← Dataset" : "← Visualization"
+    page === "dataset" ? "← Back to start" : page === "visualize" ? "← Dataset" : "← Analytics"
 
   const handleBack = () => {
     if (page === "dataset") onBack()
@@ -358,7 +458,7 @@ export default function ResultsWorkspace({
             className={page === "visualize" ? "is-current" : ""}
             onClick={() => onPageChange("visualize")}
           >
-            Visualization
+            Analytics
           </button>
           <button
             type="button"
@@ -397,7 +497,7 @@ export default function ResultsWorkspace({
 
           <p className="results-section-lead">
             Profile complete. Compare the first 10 rows before vs after cleaning, export the
-            curated frame, then proceed to exploratory visualization.
+            curated frame, then proceed to Analytics.
           </p>
 
           {(m?.datasetJudgment || story.problem.message) && (
@@ -407,24 +507,37 @@ export default function ResultsWorkspace({
             </div>
           )}
 
-          {!!m?.tactics?.length && (
-            <div className="tactics-list">
-              <h3>Tactics applied</h3>
-              <ul>
-                {m.tactics.slice(0, 8).map((tactic) => (
-                  <li key={`${tactic.tactic}-${tactic.column}`}>
-                    <strong>{tactic.tactic}</strong>
-                    <span>
-                      {tactic.column !== "(all)" && tactic.column !== "(missing cells)"
-                        ? `${tactic.column} · `
-                        : ""}
-                      {tactic.why}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+          <div className="process-lines">
+            <div className="preview-heading">
+              <h3>Processes & cleaning steps</h3>
+              <span>One line each · tap reason for why</span>
             </div>
-          )}
+            <ul className="process-line-list">
+              {cleaningLines.map((line) => (
+                <li key={line.id}>
+                  <div className="process-line-main">
+                    <strong>{line.process}</strong>
+                    <span className="process-line-step">{line.step}</span>
+                  </div>
+                  <InfoButton
+                    title={`Why: ${line.process}`}
+                    label="Why this is required"
+                    variant="why"
+                  >
+                    <p>
+                      <strong>Process:</strong> {line.process}
+                    </p>
+                    <p>
+                      <strong>Cleaning step:</strong> {line.step}
+                    </p>
+                    <p>
+                      <strong>Why required:</strong> {line.reason}
+                    </p>
+                  </InfoButton>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           <details
             className="scan-log"
@@ -432,18 +545,13 @@ export default function ResultsWorkspace({
             onToggle={(e) => setShowSteps((e.target as HTMLDetailsElement).open)}
           >
             <summary>
-              {showSteps ? "Hide analysis steps" : "Show analysis steps"}
-              <small>{scanLog.length ? `${scanLog.length} steps` : "optional"}</small>
+              {showSteps ? "Hide run log" : "Show full run log"}
+              <small>{scanLog.length ? `${scanLog.length} entries` : "optional"}</small>
             </summary>
             <ol>
               {(scanLog.length
                 ? scanLog
-                : m?.steps?.map((s) => s.replace(/_/g, " ")) || [
-                    "File added",
-                    "Understand dataset",
-                    "Apply tactics",
-                    "Preview prepared",
-                  ]
+                : m?.steps?.map((s) => s.replace(/_/g, " ")) || ["File added", "Cleaning applied"]
               ).map((step, index) => (
                 <li key={`${step}-${index}`}>{step}</li>
               ))}
@@ -501,7 +609,7 @@ export default function ResultsWorkspace({
                 )}
               </>
             ) : (
-              <p className="journey-caption">Example run — continue to Visualization.</p>
+              <p className="journey-caption">Example run — continue to Analytics.</p>
             )}
           </div>
           {exportError && <p className="report-export-error" role="alert">{exportError}</p>}
@@ -544,7 +652,7 @@ export default function ResultsWorkspace({
 
           <div className="journey-nav">
             <Button onClick={() => onPageChange("visualize")}>
-              Continue to exploratory viz <span aria-hidden="true">→</span>
+              Continue to Analytics <span aria-hidden="true">→</span>
             </Button>
           </div>
         </section>
@@ -554,7 +662,7 @@ export default function ResultsWorkspace({
         <section className="workspace-page" aria-labelledby="ws-viz">
           {!vizReady ? (
             <StageReveal
-              title="Building visualization"
+              title="Building analytics"
               steps={VIZ_LOAD_STEPS as unknown as string[]}
               onDone={() => setVizReady(true)}
             />
@@ -562,21 +670,84 @@ export default function ResultsWorkspace({
             <>
               <div className="results-section-head">
                 <div>
-                  <p className="eyebrow">Page 2 · Exploratory visualization</p>
-                  <h1 id="ws-viz">EDA on the cleaned frame</h1>
+                  <p className="eyebrow">Page 2 · Analytics</p>
+                  <h1 id="ws-viz">Derived from the cleaned dataset</h1>
                 </div>
-                <InfoButton title="How we choose these charts">
+                <InfoButton title="How analytics is derived">
                   <p>
-                    After cleaning, we inspect numeric relationships (correlation heatmap), skew,
-                    IQR outliers, and strong “neighbor” pairs — plus issue and quality views — so
-                    you can judge the data before the report.
+                    Infographics and charts are computed from the cleaned frame: correlations,
+                    neighbor pairs, skew, IQR outliers, and residual quality signals. The Report
+                    page summarizes these as business insights.
                   </p>
                 </InfoButton>
               </div>
               <p className="results-section-lead">
-                Correlation heatmap, neighbor pairs, skew ratios, and IQR outlier canyons from the
-                cleaned numeric fields — for analyst review before the brief.
+                Information derived from your cleaned data — insight cards plus exploratory charts
+                for analyst review before the brief.
               </p>
+
+              {analyticsInsights.length > 0 && (
+                <div className="insight-infographics">
+                  <div className="preview-heading">
+                    <h3>Derived insights</h3>
+                    <span>From cleaned numeric & quality signals</span>
+                  </div>
+                  <ul className="insight-card-grid">
+                    {analyticsInsights.map((insight) => (
+                      <li key={`${insight.kind}-${insight.title}`} className={`insight-card kind-${insight.kind}`}>
+                        <span className="insight-card-kind">{insight.kind}</span>
+                        {insight.metric ? (
+                          <strong className="insight-card-metric">{insight.metric}</strong>
+                        ) : null}
+                        <h4>{insight.title}</h4>
+                        <p>{insight.detail}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {analytics?.categorical.length ? (
+                <div className="viz-panel">
+                  <h3>Segment mix (top values per field)</h3>
+                  <ul className="category-mix-list">
+                    {analytics.categorical.map((cat) => {
+                      const rest = Math.max(0, 100 - cat.top.reduce((s, t) => s + t.pct, 0))
+                      return (
+                        <li key={cat.column}>
+                          <div className="category-mix-head">
+                            <strong>{cat.column}</strong>
+                            <span>{cat.distinct} values</span>
+                          </div>
+                          <div className="category-mix-bar">
+                            {cat.top.map((t, i) => (
+                              <span
+                                key={t.value}
+                                title={`${t.value}: ${t.pct}%`}
+                                style={{ width: `${t.pct}%`, background: MIX_COLORS[i] }}
+                              />
+                            ))}
+                            {rest > 0 && (
+                              <span
+                                title={`Other: ${rest.toFixed(1)}%`}
+                                style={{ width: `${rest}%`, background: "rgba(255,255,255,0.12)" }}
+                              />
+                            )}
+                          </div>
+                          <div className="category-mix-legend">
+                            {cat.top.map((t, i) => (
+                              <span key={t.value}>
+                                <i style={{ background: MIX_COLORS[i] }} />
+                                {t.value} {t.pct}%
+                              </span>
+                            ))}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ) : null}
 
               <div className="viz-panel">
                 <h3>Correlation heatmap</h3>
@@ -668,28 +839,29 @@ export default function ResultsWorkspace({
               <div className="results-section-head">
                 <div>
                   <p className="eyebrow">Page 3 · Report</p>
-                  <h1 id="ws-report">Insight report</h1>
+                  <h1 id="ws-report">Business insights</h1>
                 </div>
                 <InfoButton title="How the report is built">
                   <p>
-                    Built from the cleaned dataset and the charts. Word is best for editing; PDF
-                    via your print dialog for a fixed handout.
+                    This brief is derived from Analytics (step 2): the same derived insights and
+                    charts, written as stakeholder-ready conclusions. Word for editing; PDF via
+                    print for a fixed handout.
                   </p>
                 </InfoButton>
               </div>
               <p className="results-section-lead">
-                A concise summary — no raw table dump. Download Word to edit, or save as PDF.
+                Summarized from step 2 analytics — business takeaways, not a raw table dump.
               </p>
 
               <article className="report-preview">
-                <h3>Insight report</h3>
-                <p className="report-kicker">{sourceName}</p>
-                <h4>Problem</h4>
+                <h3>Business insight brief</h3>
+                <p className="report-kicker">{sourceName} · Derived from Analytics</p>
+                <h4>Situation</h4>
                 <p>{story.problem.statement}</p>
                 <p>{story.problem.message}</p>
                 {story.selection && (
                   <>
-                    <h4>Approach we recommend</h4>
+                    <h4>Preparation approach</h4>
                     <p>
                       <strong>{story.selection.formation.replace(/_/g, " ")}</strong>
                       {story.selection.sei != null
@@ -699,44 +871,24 @@ export default function ResultsWorkspace({
                     </p>
                   </>
                 )}
-                <h4>Key insights</h4>
+                <h4>Business insights (from Analytics)</h4>
                 <ol className="report-insight-list">
-                  {story.insights.map((insight) => (
+                  {(analyticsInsights.length
+                    ? analyticsInsights.map((insight) => ({
+                        title: insight.title,
+                        detail: insight.metric
+                          ? `${insight.detail} (${insight.metric})`
+                          : insight.detail,
+                      }))
+                    : story.insights
+                  ).map((insight) => (
                     <li key={insight.title}>
                       <strong>{insight.title}</strong>
                       <span>{insight.detail}</span>
                     </li>
                   ))}
-                  {analytics?.neighbors?.[0] && (
-                    <li>
-                      <strong>Strongest numeric neighbors</strong>
-                      <span>
-                        {analytics.neighbors[0].left} and {analytics.neighbors[0].right} move
-                        together (|r|={Math.abs(analytics.neighbors[0].value).toFixed(2)}). Treat
-                        them as one story when briefing stakeholders.
-                      </span>
-                    </li>
-                  )}
-                  {analytics?.skew?.[0] && Math.abs(analytics.skew[0].skew) >= 1 && (
-                    <li>
-                      <strong>Skewed field to watch</strong>
-                      <span>
-                        {analytics.skew[0].column} is highly skewed (skew=
-                        {analytics.skew[0].skew}). Medians and robust prep beat raw averages here.
-                      </span>
-                    </li>
-                  )}
-                  {analytics?.outliers?.[0] && (
-                    <li>
-                      <strong>Outlier canyon</strong>
-                      <span>
-                        {analytics.outliers[0].column} has {analytics.outliers[0].count} IQR
-                        outliers ({analytics.outliers[0].pct}%). Review before locking KPIs.
-                      </span>
-                    </li>
-                  )}
                 </ol>
-                <h4>Next actions</h4>
+                <h4>Recommended next actions</h4>
                 <ol className="report-insight-list">
                   {story.actions.map((action) => (
                     <li key={action.title}>
@@ -750,17 +902,36 @@ export default function ResultsWorkspace({
               </article>
 
               <div className="journey-download-row">
-                <Button onClick={() => downloadWordReport(story, sourceName)}>
+                <Button
+                  onClick={() =>
+                    downloadWordReport(story, sourceName, {
+                      derivedInsights: analyticsInsights.map((i) => ({
+                        title: i.title,
+                        detail: i.metric ? `${i.detail} (${i.metric})` : i.detail,
+                      })),
+                    })
+                  }
+                >
                   Download Word (editable)
                 </Button>
-                <Button variant="secondary" onClick={() => printReportAsPdf(story, sourceName)}>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    printReportAsPdf(story, sourceName, {
+                      derivedInsights: analyticsInsights.map((i) => ({
+                        title: i.title,
+                        detail: i.metric ? `${i.detail} (${i.metric})` : i.detail,
+                      })),
+                    })
+                  }
+                >
                   Save as PDF / Print
                 </Button>
               </div>
 
               <div className="journey-nav">
                 <Button variant="secondary" onClick={() => onPageChange("visualize")}>
-                  ← Visualization
+                  ← Analytics
                 </Button>
                 <Button onClick={onReset}>Try a new file</Button>
               </div>

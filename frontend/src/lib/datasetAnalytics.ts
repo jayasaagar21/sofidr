@@ -1,5 +1,5 @@
 /**
- * Client-side analytics for Visualization: correlations, skew, outliers, neighbors.
+ * Client-side analytics: correlations, skew, outliers, neighbors, category mix.
  */
 
 export interface CorrPair {
@@ -22,7 +22,16 @@ export interface OutlierStat {
   method: string
 }
 
+export interface CategoryMix {
+  column: string
+  distinct: number
+  top: { value: string; pct: number }[]
+}
+
 export interface DatasetAnalytics {
+  rowsAnalyzed: number
+  columnCount: number
+  categorical: CategoryMix[]
   numericColumns: string[]
   correlationMatrix: number[][]
   corrLabels: string[]
@@ -116,6 +125,9 @@ export function buildAnalyticsFromCsv(csv: string): DatasetAnalytics {
   const { columns, rows } = parseCsvTable(csv)
   if (!columns.length || !rows.length) {
     return {
+      rowsAnalyzed: 0,
+      columnCount: columns.length,
+      categorical: [],
       numericColumns: [],
       correlationMatrix: [],
       corrLabels: [],
@@ -195,7 +207,32 @@ export function buildAnalyticsFromCsv(csv: string): DatasetAnalytics {
     }
   })
 
+  const numericSet = new Set(numericIdx)
+  const categorical: CategoryMix[] = []
+  for (let c = 0; c < columns.length; c += 1) {
+    if (numericSet.has(c) || String(columns[c]).includes("__was_missing")) continue
+    const counts = new Map<string, number>()
+    let total = 0
+    for (const row of rows) {
+      const v = (row[c] ?? "").trim()
+      if (!v) continue
+      total += 1
+      counts.set(v, (counts.get(v) ?? 0) + 1)
+    }
+    // Skip identifier-like / free-text fields: segments need repeated values.
+    if (total < 5 || counts.size < 2 || counts.size > Math.max(30, total * 0.5)) continue
+    const top = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([value, n]) => ({ value, pct: Number(((100 * n) / total).toFixed(1)) }))
+    categorical.push({ column: columns[c], distinct: counts.size, top })
+  }
+  categorical.sort((a, b) => (b.top[0]?.pct ?? 0) - (a.top[0]?.pct ?? 0))
+
   return {
+    rowsAnalyzed: rows.length,
+    columnCount: columns.filter((c) => !String(c).includes("__was_missing")).length,
+    categorical: categorical.slice(0, 6),
     numericColumns: labels,
     correlationMatrix: matrix,
     corrLabels: labels,
