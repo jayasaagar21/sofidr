@@ -23,6 +23,7 @@ class Terrain:
     dim_ratio: float            # d / n
     mean_abs_correlation: float
     minority_count: int
+    sparsity: float = 0.0       # share of observed cells that are exactly zero
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -82,6 +83,9 @@ def analyze(X: np.ndarray, y: np.ndarray) -> Terrain:
     else:
         mean_abs_corr = 0.0
 
+    observed = ~np.isnan(X)
+    sparsity = float((X[observed] == 0).sum() / observed.sum()) if observed.any() else 0.0
+
     return Terrain(
         n_samples=n,
         n_features=d,
@@ -90,6 +94,7 @@ def analyze(X: np.ndarray, y: np.ndarray) -> Terrain:
         dim_ratio=d / n,
         mean_abs_correlation=mean_abs_corr,
         minority_count=minority_count,
+        sparsity=sparsity,
     )
 
 

@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Optional
@@ -47,6 +48,7 @@ try:
         read_tabular,
         safe_filename_stem,
     )
+    from dq.core import coerce_numeric, infer_role
 except ImportError:
     print("Warning: SOFIDR package not found. Install with: pip install -r requirements.txt")
     raise
@@ -126,6 +128,84 @@ class UploadedDataset:
     feature_names: list[str]
     target_name: str
     filename: str
+    target_reason: str = ""
+    dropped_target_rows: int = 0
+
+
+_TARGET_NAME_HINT = re.compile(
+    r"(^|_)(target|label|class|outcome|result|churn|churned|fraud|default|diagnosis|"
+    r"converted|survived|approved|status|y)($|_)",
+    re.I,
+)
+
+
+def _class_target_problem(s: pd.Series, min_class_rows: int) -> Optional[str]:
+    """Return why `s` cannot serve as the paper's class label y, or None if it can."""
+    nn = s.dropna()
+    if len(nn) < 10:
+        return "too few labelled rows"
+    if pd.api.types.is_float_dtype(nn) and not all(float(v).is_integer() for v in nn.unique()):
+        return "continuous values, not discrete classes"
+    counts = nn.astype(str).str.strip().value_counts()
+    if len(counts) < 2:
+        return "fewer than two classes"
+    if len(counts) > min(20, max(2, len(nn) // 5)):
+        return f"{len(counts)} distinct values — too many to be a class label"
+    if counts.min() < min_class_rows:
+        return f"a class has fewer than {min_class_rows} rows"
+    return None
+
+
+def _pick_target(df: pd.DataFrame, min_class_rows: int) -> tuple[str, str]:
+    """Choose the class label y for SEI scoring when the user did not name one."""
+    ordered: list[tuple[str, str]] = []
+    for c in df.columns:
+        if _TARGET_NAME_HINT.search(str(c)):
+            ordered.append((str(c), "column name signals an outcome/label"))
+    ordered.append((str(df.columns[-1]), "last column (paper convention: label last)"))
+    categorical = sorted(
+        (str(c) for c in df.columns if not pd.api.types.is_float_dtype(df[c])),
+        key=lambda c: df[c].nunique(dropna=True),
+    )
+    ordered.extend((c, "lowest-cardinality categorical field") for c in categorical)
+
+    seen: set[str] = set()
+    for name, reason in ordered:
+        if name in seen or name.endswith("__was_missing"):
+            continue
+        seen.add(name)
+        if infer_role(name, df[name]) in {"identifier", "empty", "constant"}:
+            continue
+        if _class_target_problem(df[name], min_class_rows) is None:
+            return name, reason
+    raise HTTPException(
+        400,
+        "No class label found. SEI scoring needs a column with 2–20 classes "
+        "(e.g. status, churn, label). Name one with ?target_column=.",
+    )
+
+
+def _feature_matrix(df: pd.DataFrame, target: str) -> tuple[np.ndarray, list[str]]:
+    """Numeric feature space X (Definition 1): numeric or numeric-as-text, no IDs."""
+    names: list[str] = []
+    cols: list[np.ndarray] = []
+    for c in df.columns:
+        name = str(c)
+        if name == target or name.endswith("__was_missing"):
+            continue
+        s = df[c]
+        if infer_role(name, s) in {"identifier", "empty", "constant"}:
+            continue
+        nn = s.notna()
+        if not nn.any():
+            continue
+        cast = coerce_numeric(s)
+        if cast[nn].notna().mean() >= 0.95:
+            names.append(name)
+            cols.append(cast.to_numpy(dtype=float))
+    if not cols:
+        raise HTTPException(400, "CSV must contain at least one numeric feature column")
+    return np.column_stack(cols), names
 
 
 async def _read_upload(file: UploadFile) -> tuple[bytes, pd.DataFrame, list[str]]:
@@ -146,47 +226,40 @@ async def _load_csv_upload(
     _, df, _ = await _read_upload(file)
     if df.empty or len(df.columns) < 2:
         raise HTTPException(400, "Dataset must contain data, at least one feature, and a target column")
+    df.columns = [str(c) for c in df.columns]
 
-    target_name = target_column or str(df.columns[-1])
-    if target_name not in df.columns:
-        raise HTTPException(400, f"Target column not found: {target_name}")
-    if df[target_name].isna().any():
-        raise HTTPException(400, "Target column cannot contain missing values")
+    if target_column:
+        if target_column not in df.columns:
+            raise HTTPException(400, f"Target column not found: {target_column}")
+        problem = _class_target_problem(df[target_column], min_class_rows)
+        if problem:
+            raise HTTPException(400, f"Target '{target_column}' is not usable: {problem}")
+        target_name, target_reason = target_column, "chosen by you"
+    else:
+        target_name, target_reason = _pick_target(df, min_class_rows)
 
-    y = df[target_name].to_numpy()
-    if not (
-        pd.api.types.is_object_dtype(y)
-        or str(y.dtype).startswith("category")
-        or pd.api.types.is_integer_dtype(y)
-        or pd.api.types.is_bool_dtype(y)
-    ):
-        values = pd.Series(y).dropna().unique()
-        if not all(float(value).is_integer() for value in values):
-            raise HTTPException(400, "Target must contain discrete classes, not continuous values")
+    labelled = df[target_name].notna()
+    dropped = int((~labelled).sum())
+    df = df.loc[labelled].reset_index(drop=True)
+    y_series = df[target_name]
+    if pd.api.types.is_object_dtype(y_series) or str(y_series.dtype).startswith("string"):
+        y_series = y_series.astype(str).str.strip()
+    y = y_series.to_numpy()
 
-    numeric = df.drop(columns=[target_name]).select_dtypes(include="number")
-    if numeric.shape[1] < 1:
-        raise HTTPException(400, "CSV must contain at least one numeric feature column")
-    X = numeric.to_numpy(dtype=float)
+    X, feature_names = _feature_matrix(df, target_name)
     if np.isinf(X).any():
         raise HTTPException(400, "Feature columns cannot contain infinite values")
     if len(X) < 10:
         raise HTTPException(400, "Dataset too small or invalid")
 
-    class_counts = pd.Series(y).value_counts()
-    if len(class_counts) < 2:
-        raise HTTPException(400, "Target must contain at least two classes")
-    if class_counts.min() < min_class_rows:
-        raise HTTPException(
-            400, f"Each target class must contain at least {min_class_rows} rows"
-        )
-
     return UploadedDataset(
         X=X,
         y=y,
-        feature_names=[str(name) for name in numeric.columns],
+        feature_names=feature_names,
         target_name=target_name,
         filename=file.filename or "upload.csv",
+        target_reason=target_reason,
+        dropped_target_rows=dropped,
     )
 
 
@@ -207,6 +280,10 @@ class OptimizeResponse(BaseModel):
     success: bool
     dataset_name: str
     target_column: Optional[str] = None
+    target_reason: str = ""
+    feature_columns: list[str] = []
+    rows_evaluated: int = 0
+    epsilon: float = 0.15
     terrain_tags: list[str]
     cold_start_default: str
     best_by_sei: str
@@ -302,7 +379,7 @@ async def optimize(
     target_column: Optional[str] = Query(None),
     file: Optional[UploadFile] = File(None),
     model: str = Query("rf", pattern="^(rf|logreg)$"),
-    iterations: int = Query(1, ge=0, le=1),
+    iterations: int = Query(3, ge=0, le=3),
     epsilon: float = Query(0.15, ge=0.0, le=1.0),
 ):
     """Optimize preprocessing for a dataset.
@@ -313,17 +390,22 @@ async def optimize(
     """
     try:
         # Load data
+        feature_names: list[str] = []
+        target_reason = ""
         if archetype:
             if archetype not in ARCHETYPES:
                 raise HTTPException(400, f"Unknown archetype: {archetype}")
             X, y = ARCHETYPES[archetype]()
             dataset_name = archetype
             target_name = None
+            target_reason = "benchmark archetype label"
         elif file:
             upload = await _load_csv_upload(file, target_column, min_class_rows=3)
             X, y = upload.X, upload.y
             dataset_name = upload.filename
             target_name = upload.target_name
+            feature_names = upload.feature_names
+            target_reason = upload.target_reason
         else:
             raise HTTPException(400, "Provide either ?archetype or upload a file")
 
@@ -428,6 +510,10 @@ async def optimize(
             success=True,
             dataset_name=dataset_name,
             target_column=target_name,
+            target_reason=target_reason,
+            feature_columns=feature_names,
+            rows_evaluated=int(len(y)),
+            epsilon=epsilon,
             terrain_tags=result.terrain.tags(),
             cold_start_default=result.cold_start_default,
             best_by_sei=result.best_by_sei,
