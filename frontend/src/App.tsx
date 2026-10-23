@@ -348,7 +348,7 @@ export default function App() {
 
       <header className="app-header landing-header">
         <section className="hero intro-hero" id="explain" aria-labelledby="explain-heading">
-          <p className="eyebrow intro-fade">Explain SOFIDR</p>
+          <p className="eyebrow intro-fade">For data analytics experts</p>
           <h1 className="intro-title" id="explain-heading">
             <span className="intro-brand">SOFIDR</span>
           </h1>
@@ -356,16 +356,16 @@ export default function App() {
             Strategic Optimization Framework for Iterative Data Regeneration
           </p>
           <p className="tagline intro-fade-delay-2">
-            SOFIDR cleans messy spreadsheets, shows what matters visually, and gives you a clear
-            report. We built it so teams can trust their data and decide faster — in one session,
-            with nothing stored afterward.
+            Profile, clean, and compare preparation tactics on tabular data — with before/after
+            previews, EDA charts, and an exportable insight brief. Built for analysts who need
+            defensible cleaning and selection in one session (nothing persisted).
           </p>
           <div className="hero-actions intro-fade-delay-3">
             <a className="hero-cta" href="#problem">
               See the problem <span aria-hidden="true">↓</span>
             </a>
             <a className="hero-secondary" href="#start">
-              Start now
+              Run analysis
             </a>
           </div>
         </section>
@@ -374,10 +374,11 @@ export default function App() {
       <section className="landing-block" id="problem" aria-labelledby="problem-heading">
         <div className="landing-inner">
           <p className="eyebrow">Problem</p>
-          <h2 id="problem-heading">Messy data slows decisions.</h2>
+          <h2 id="problem-heading">Uncurated extracts break analytics trust.</h2>
           <p>
-            Spreadsheets arrive with blanks, duplicates, and unclear fields. Teams argue over
-            numbers instead of acting on them — and nobody trusts the file enough to decide.
+            Alias drift (US / USA / United States), duplicates, missingness, and skewed numerics
+            silently bias KPIs and models. Analysts spend cycles reconciling frames instead of
+            validating signal.
           </p>
         </div>
       </section>
@@ -385,27 +386,27 @@ export default function App() {
       <section className="landing-block landing-block-soft" id="solution" aria-labelledby="solution-heading">
         <div className="landing-inner">
           <p className="eyebrow">Solution</p>
-          <h2 id="solution-heading">Clean the file. See the story. Take the report.</h2>
+          <h2 id="solution-heading">Curate → explore → brief.</h2>
           <p>
-            Upload once. SOFIDR repairs the dataset, highlights what matters in simple charts, and
-            builds an insight report you can download as Word or PDF.
+            SOFIDR applies structured cleaning tactics, surfaces EDA (correlations, skew, outliers),
+            and packages conclusions for stakeholders — Word or PDF, editable when you need it.
           </p>
           <ul className="landing-points">
             <li>
               <strong>Dataset</strong>
-              <span>Preview and download a cleaner file.</span>
+              <span>Before/after preview and curated export.</span>
             </li>
             <li>
               <strong>Visualization</strong>
-              <span>See issues and quality at a glance.</span>
+              <span>Heatmaps, neighbors, skew, IQR outliers.</span>
             </li>
             <li>
               <strong>Report</strong>
-              <span>Insights ready to share and edit.</span>
+              <span>Decision-oriented insights and next actions.</span>
             </li>
           </ul>
           <button type="button" className="landing-inline-link" onClick={openDemo}>
-            Watch the demo ↓
+            Watch the pipeline demo ↓
           </button>
         </div>
       </section>
@@ -416,12 +417,12 @@ export default function App() {
         <div className="input-section">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Your turn</p>
-              <h2>Now run the same story on your data.</h2>
+              <p className="eyebrow">Workspace</p>
+              <h2>Upload a frame or run a benchmark archetype.</h2>
             </div>
             <p>
-              Upload a file. You’ll see it scan step by step, then open Dataset, Visualization,
-              and Report as separate pages.
+              Processing shows the tactic breakdown (~5s), then opens Dataset → Visualization →
+              Report as dedicated pages for analyst review.
             </p>
           </div>
           <div className="input-container">

@@ -424,10 +424,14 @@ export async function cleanLocally(
   let missingFilled = 0
   let rowsWritten = 0
   const previewRows: string[][] = []
+  const beforePreviewRows: string[][] = []
 
   for (let index = 0; index < dataLineIndexes.length; index += 1) {
     const rawCells = parseLine(lines[dataLineIndexes[index]], delimiter)
     const cells = columns.map((_, c) => normalizeCell(rawCells[c] ?? ""))
+    if (beforePreviewRows.length < 10) {
+      beforePreviewRows.push(columns.map((_, c) => rawCells[c]?.trim() ?? ""))
+    }
     const key = hashRow(cells)
     if (seen.has(key)) {
       duplicatesRemoved += 1
@@ -493,10 +497,16 @@ export async function cleanLocally(
     rows: previewRows,
     truncated: afterRows > previewRows.length,
   }
+  const beforePreview: CsvPreview = {
+    columns,
+    rows: beforePreviewRows,
+    truncated: beforeRows > beforePreviewRows.length,
+  }
 
   const cleaning: CleanResponse = {
     blob,
-    preview: preview.rows.length ? preview : parseCsvPreview(csvText.slice(0, 256 * 1024)),
+    preview: preview.rows.length ? preview : parseCsvPreview(csvText.slice(0, 256 * 1024), 10),
+    beforePreview,
     metadata: {
       filename: `${baseName}-sofidr-cleaned.csv`,
       before: { rows: beforeRows, columns: columns.length },

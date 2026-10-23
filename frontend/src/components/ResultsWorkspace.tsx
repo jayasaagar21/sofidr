@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import {
   api,
   CleanResponse,
+  CsvPreview,
   DataExportFormat,
   DatasetProfile,
   OptimizeResponse,
@@ -128,6 +129,43 @@ function StageReveal({
   )
 }
 
+function PreviewTable({
+  preview,
+  caption,
+}: {
+  preview: CsvPreview
+  caption: string
+}) {
+  if (!preview.columns.length) {
+    return <p className="journey-caption">No rows available for this view.</p>
+  }
+  return (
+    <div className="table-container">
+      <table>
+        <caption className="sr-only">{caption}</caption>
+        <thead>
+          <tr>
+            {preview.columns.map((column, index) => (
+              <th key={`${column}-${index}`} scope="col">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {preview.rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {preview.columns.map((_, columnIndex) => (
+                <td key={columnIndex}>{row[columnIndex] || "—"}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function Heatmap({
   labels,
   matrix,
@@ -235,6 +273,7 @@ export default function ResultsWorkspace({
   const isLocal = cleaning?.metadata.processingMode === "local"
   const m = cleaning?.metadata
   const preview = cleaning?.preview
+  const beforePreview = cleaning?.beforePreview
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
@@ -338,8 +377,8 @@ export default function ResultsWorkspace({
         <section className="workspace-page" aria-labelledby="ws-dataset">
           <div className="results-section-head">
             <div>
-              <p className="eyebrow">Page 1 · Dataset</p>
-              <h1 id="ws-dataset">{sourceName}</h1>
+            <p className="eyebrow">Page 1 · Curated dataset</p>
+            <h1 id="ws-dataset">{sourceName}</h1>
             </div>
             <InfoButton title="How we handled your dataset">
               <p>
@@ -357,8 +396,8 @@ export default function ResultsWorkspace({
           </div>
 
           <p className="results-section-lead">
-            Scan complete. Preview the first 10 cleaned rows, download the file, then continue to
-            visualization.
+            Profile complete. Compare the first 10 rows before vs after cleaning, export the
+            curated frame, then proceed to exploratory visualization.
           </p>
 
           {(m?.datasetJudgment || story.problem.message) && (
@@ -467,41 +506,45 @@ export default function ResultsWorkspace({
           </div>
           {exportError && <p className="report-export-error" role="alert">{exportError}</p>}
 
-          {preview && preview.columns.length > 0 && (
-            <div className="journey-preview">
+          {(beforePreview?.columns.length || preview?.columns.length) ? (
+            <div className="before-after-preview">
               <div className="preview-heading">
-                <h3>Preview</h3>
-                <span>First {preview.rows.length} of cleaned rows</span>
+                <h3>Before vs after</h3>
+                <span>First 10 rows · raw input beside cleaned output</span>
               </div>
-              <div className="table-container">
-                <table>
-                  <caption className="sr-only">Cleaned dataset preview</caption>
-                  <thead>
-                    <tr>
-                      {preview.columns.map((column, index) => (
-                        <th key={`${column}-${index}`} scope="col">
-                          {column}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>
-                        {preview.columns.map((_, columnIndex) => (
-                          <td key={columnIndex}>{row[columnIndex] || "—"}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="before-after-grid">
+                <div className="before-after-pane">
+                  <div className="before-after-label">
+                    <strong>Before</strong>
+                    <span>Source extract</span>
+                  </div>
+                  {beforePreview && beforePreview.columns.length > 0 ? (
+                    <PreviewTable preview={beforePreview} caption="Before cleaning preview" />
+                  ) : (
+                    <p className="journey-caption">
+                      Before preview is available for CSV/TSV uploads. After view still shows the
+                      cleaned sample.
+                    </p>
+                  )}
+                </div>
+                <div className="before-after-pane is-after">
+                  <div className="before-after-label">
+                    <strong>After</strong>
+                    <span>SOFIDR cleaned</span>
+                  </div>
+                  {preview && preview.columns.length > 0 ? (
+                    <PreviewTable preview={preview} caption="After cleaning preview" />
+                  ) : (
+                    <p className="journey-caption">Cleaned preview unavailable.</p>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+          ) : null}
 
           <div className="journey-nav">
             <Button onClick={() => onPageChange("visualize")}>
-              Continue to Visualization <span aria-hidden="true">→</span>
+              Continue to exploratory viz <span aria-hidden="true">→</span>
             </Button>
           </div>
         </section>
@@ -519,8 +562,8 @@ export default function ResultsWorkspace({
             <>
               <div className="results-section-head">
                 <div>
-                  <p className="eyebrow">Page 2 · Visualization</p>
-                  <h1 id="ws-viz">See how your dataset looks visually</h1>
+                  <p className="eyebrow">Page 2 · Exploratory visualization</p>
+                  <h1 id="ws-viz">EDA on the cleaned frame</h1>
                 </div>
                 <InfoButton title="How we choose these charts">
                   <p>
@@ -531,7 +574,8 @@ export default function ResultsWorkspace({
                 </InfoButton>
               </div>
               <p className="results-section-lead">
-                Heatmap, correlations, skew, outliers, and neighbors from the cleaned file.
+                Correlation heatmap, neighbor pairs, skew ratios, and IQR outlier canyons from the
+                cleaned numeric fields — for analyst review before the brief.
               </p>
 
               <div className="viz-panel">

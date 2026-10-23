@@ -132,13 +132,13 @@ export default function GuidedProcessDemo({
     >
       <div className="story-demo-inner">
         <header className="story-demo-intro">
-          <p className="eyebrow">Demo · the story in motion</p>
+          <p className="eyebrow">Demo · analyst pipeline</p>
           <h2 id="process-title" ref={headingRef} tabIndex={-1}>
-            Watch what happens to a file.
+            Profile → clean → score → brief.
           </h2>
           <p>
-            Auto-plays through the journey — click any chapter to jump. This is a summarized
-            view of what SOFIDR does once a spreadsheet lands.
+            Auto-plays the SOFIDR path analysts follow. Click any stage to jump. Summarizes
+            judgment, cleaning tactics, EDA, and the exportable report.
           </p>
         </header>
 
@@ -215,9 +215,9 @@ export default function GuidedProcessDemo({
         </ol>
 
         <div className="story-demo-cta">
-          <p>Ready to run this on a real spreadsheet?</p>
+          <p>Ready to run the pipeline on your extract?</p>
           <Button onClick={onChooseBenchmark}>
-            Start with your file <span aria-hidden="true">↓</span>
+            Open workspace <span aria-hidden="true">↓</span>
           </Button>
         </div>
       </div>

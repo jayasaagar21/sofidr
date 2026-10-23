@@ -62,10 +62,10 @@ export default function ProcessingPage({
           <span className="process-file-pulse" aria-hidden="true" />
         </div>
 
-        <h1>Analyzing your dataset</h1>
+        <h1>Profiling & cleaning in progress</h1>
         <p className="process-page-lead">
-          SOFIDR judges the data, picks cleaning tactics, and applies them step by step. This
-          breakdown runs for a few seconds — then you land on the cleaned output.
+          Judging schema and quality, selecting tactics, applying synonym collapse and repairs.
+          ~5s breakdown, then the Dataset page with before/after preview.
         </p>
 
         <div

@@ -178,6 +178,8 @@ export interface CleanResponse {
   blob: Blob
   metadata: CleaningMetadata
   preview: CsvPreview
+  /** Raw input preview (first rows) for before/after comparison */
+  beforePreview?: CsvPreview
 }
 
 export interface DatasetProfileColumn {
@@ -445,6 +447,15 @@ export const api = {
     file: File,
     exportFormat: DataExportFormat = "csv"
   ): Promise<CleanResponse> {
+    let beforePreview: CsvPreview | undefined
+    const lower = file.name.toLowerCase()
+    if (lower.endsWith(".csv") || lower.endsWith(".tsv") || lower.endsWith(".txt") || file.type.includes("csv")) {
+      try {
+        beforePreview = parseCsvPreview(await file.slice(0, 256 * 1024).text(), 10)
+      } catch {
+        beforePreview = undefined
+      }
+    }
     const form = new FormData()
     form.append("file", file, file.name)
     const query = new URLSearchParams({ format: exportFormat })
@@ -463,11 +474,12 @@ export const api = {
     const blob = await res.blob()
     const preview =
       exportFormat === "csv"
-        ? parseCsvPreview(await blob.slice(0, 256 * 1024).text())
+        ? parseCsvPreview(await blob.slice(0, 256 * 1024).text(), 10)
         : { columns: [], rows: [], truncated: false }
     return {
       blob,
       preview,
+      beforePreview,
       metadata: {
         filename: responseFilename(res.headers),
         before: {

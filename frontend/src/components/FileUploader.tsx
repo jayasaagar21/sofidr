@@ -72,8 +72,11 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
     <div className="file-uploader">
       <div className="panel-heading">
         <div>
-          <h3>Your file</h3>
-          <p>Drop a spreadsheet to clean it. CSV/TSV can go large; Excel and JSON stay smaller.</p>
+          <h3>Source dataset</h3>
+          <p>
+            Upload a tabular extract for profiling and cleaning. CSV/TSV scale higher; Excel and
+            JSON stay under the API body limit.
+          </p>
         </div>
       </div>
       <div
@@ -93,8 +96,8 @@ export default function FileUploader({ loading, onUpload }: FileUploaderProps) {
           hidden
         />
         <div className="drop-content">
-          <strong>Drop your file here</strong>
-          <p>or choose it from your device</p>
+          <strong>Drop dataset here</strong>
+          <p>or select from disk</p>
           <Button
             onClick={() => inputRef.current?.click()}
             disabled={loading}
